@@ -3,6 +3,7 @@ import pymongo
 import credentials
 import threading
 
+
 class RedditBot:
     def __init__(self, client_id, client_secret, username, password, user_agent, target_subreddit):
         self.reddit = praw.Reddit(
@@ -13,17 +14,108 @@ class RedditBot:
             user_agent=user_agent
         )
         self.subreddit = self.reddit.subreddit(target_subreddit)
-        self.post_collection = pymongo.MongoClient(credentials.mongo_uri)[
-            credentials.mongo_dbname][credentials.mongo_post_collection]
-        self.comment_collection = pymongo.MongoClient(credentials.mongo_uri)[
-            credentials.mongo_dbname][credentials.mongo_comment_collection]
+        self.collection = pymongo.MongoClient(credentials.mongo_uri)[
+            credentials.mongo_dbname][credentials.mongo_collection]
         self.post_stream = self.subreddit.stream.submissions()
         self.comment_stream = self.subreddit.stream.comments()
         self.commands = {
             'greet': self.greet_command,
             'help': self.help_command,
+            'request': self.request,
+            'accept': self.accept,
+            'paid': self.paid_command,
+            'returned': self.returned,
+            'returnedAccepted': self.returned_accepted,
+            'history': self.history
         }
-    
+
+    def accept(self, comment):
+        id = comment.body.split()[1]
+        myquery = {'id': id}
+        doc = self.collection.find_one(myquery)
+        if doc["requester"] == comment.author.name:
+            newvalues = {"$set": {"payment_received": True}}
+            self.collection.update_one(myquery, newvalues)
+            message = f"Payment has been accepted for id = {id}"
+            comment.reply(message)
+        else:
+            message = f"Only the requester can make an accept request!"
+            comment.reply(message)
+
+    def history(self, comment):
+        user_id = comment.body.split()[1]
+        myquery = {'requester': user_id}
+        requester_doc = self.collection.find(myquery)
+
+        myquery = {'lender': user_id}
+        lender_doc = self.collection.find(myquery)
+
+        count_request_completed = 0
+        num_requests = len(list(requester_doc))
+        num_lender = len(list(lender_doc))
+
+        for requester in requester_doc:
+            if( requester['paid']==True and requester['payment_received']==True and requester['returned']==True and requester['returned_received']==True):
+                count_request_completed+=1
+        
+        message=f'num_requests:{num_requests},\nnum_lender:{num_lender}, \ncount_request_completed:{count_request_completed}'
+        comment.reply(message)
+
+
+    def returned(self, comment):
+        id = comment.body.split()[1]
+        myquery = {'id': id}
+        doc = self.collection.find_one(myquery)
+        if doc["requester"] == comment.author.name:
+            newvalues = {"$set": {"returned": True}}
+            self.collection.update_one(myquery, newvalues)
+            message = f"Payment has been accepted for id = {id}"
+            comment.reply(message)
+        else:
+            message = f"Only the requester can make a returned request!"
+            comment.reply(message)
+
+    def returned_accepted(self, comment):
+        id = comment.body.split()[1]
+        myquery = {'id': id}
+        doc = self.collection.find_one(myquery)
+        if doc["lender"] == comment.author.name:
+            newvalues = {"$set": {"returned_accepted": True}}
+            self.collection.update_one(myquery, newvalues)
+            message = f"Payment has been returned for id = {id}. Transaction has been closed now."
+            comment.reply(message)
+        else:
+            message = f"Only the lender can make an accepted return request!"
+            comment.reply(message)
+
+    def paid_command(self, comment):
+        print("Payment processing")
+        object_id = comment.body.split()[1]
+        lender_name = comment.author.name
+        transaction = self.collection.find_one({'id': object_id})
+        if transaction is None:
+            comment.reply(f'Error: transaction with id {object_id} not found')
+            return
+        requester = transaction['requester']
+        message = f'Hi, {lender_name}! You have paid {requester} for their request. {requester}please confirm by replying to this comment with !accept {object_id}'
+        self.collection.update_one({'id': object_id}, {'$set': {'paid': True}})
+        self.collection.update_one(
+            {'id': object_id}, {'$set': {'lender': lender_name}})
+        comment.reply(message)
+
+    def request(self, comment):
+        data = {'id': comment.id,
+                'requester': comment.author.name,
+                'lender': "",
+                'paid': False,
+                'payment_received': False,
+                'returned': False,
+                'returned_received': False,
+                }
+        self.collection.insert_one(data)
+        message = f"You request has been opened with ID : {comment.id}"
+        comment.reply(message)
+
     def greet_command(self, comment):
         message = f'Hello, {comment.author.name}! How are you today?'
         comment.reply(message)
@@ -37,34 +129,27 @@ class RedditBot:
 
     def handle_new_comment(self, comment):
         print(f'New Comment:', comment.body)
-        if comment.body.startswith('!'):
+        if comment.body.strip().startswith('!'):
             command = comment.body.split()[0].lower()[1:]
             if command in self.commands:
-                data = {'id': comment.id,
-                        'author': comment.author.name,
-                        'body': comment.body,
-                        'subreddit': comment.subreddit.display_name,
-                        'created_utc': comment.created_utc
-                    }
-                self.comment_collection.insert_one(data)
                 self.commands[command](comment)
+            else:
+                message = "Invalid Command!"
+                comment.reply(message)
 
     def handle_new_post(self, post):
         print(f'New post: {post.title}')
-        data = {
-            'title': post.title,
-            'author': post.author.name,
-            'created_utc': post.created_utc,
-            'permalink': post.permalink,
-            'url': post.url,
-        }
-        self.post_collection.insert_one(data)
+        if post.title.startswith('!'):
+            command = post.title.split()[0].lower()[1:]
+            if command in self.commands:
+                post.body = post.title
+                self.commands[command](post)
 
     def listen_for_comments(self):
         print("Listening for comments")
         for comment in self.subreddit.stream.comments(skip_existing=True):
             self.handle_new_comment(comment)
-            
+
     def listen_for_posts(self):
         print("Listening for posts")
         for post in self.subreddit.stream.submissions(skip_existing=True):
@@ -78,6 +163,7 @@ class RedditBot:
         thread2.start()
         thread1.join()
         thread2.join()
+
 
 if __name__ == "__main__":
     bot = RedditBot(

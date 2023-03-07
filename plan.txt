@@ -1,0 +1,69 @@
+[REQ] Function
+ -Format:
+[REQ] - ($Amount) 
+- bot comments object id (int)
+
+[Paid] Function
+- [Paid] - (object id)
+- false -> true + update lender name!
+->add comment reply for updated!
+
+[Accepted]
+-[ACC] - (object id)
+-false->true (received)
+->add comment reply for updated!
+
+[Return]
+-false->true (received)
+->add comment reply for updated!
+
+
+[Return Accepted]
+-false->true (received)
+->add comment reply for updated!
+
+
+[History]
+- history {username}
+-fetchALL({
+    lender : {username},
+    {requests} : {user}
+})
+-Number of requests money requested
+-Number of times lended.
+-Number of times money returned.
+
+Mongo DB
+
+Object ID - random
+Requester -  reddit user id
+Lender - reddit user id / “”
+Paid - boolen / False
+Received - bool / False
+Return - bool / False
+Return Accepted - bool / False
+
+
+Commands to be coded:
+
+->$check /u/user - Checks the specified user and returns any loans where user is either the borrower or lender.
+
+->$loan amount [currency] - Notes that the creator of the comment has loaned the creator of the thread <amount> 
+in u.s. dollars, which can be retrieved at a later time. The bot also remembers the thread. [currency] is optional 
+and must follow the ISO 4217 standard. For example: $loan 10 EUR
+
+->$paid /u/user amount [currency] - Notes that the creator of the comment has been paid back by user the specified amount 
+of money on a pre-existing loan. If no loan has been taken out by the user to the creator of the comment, the comment is 
+replied with a warning message. Currency is optional and must follow the ISO 4217 standard. For example: $paid /u/johndoe 50 JPN
+
+->$paid_with_id ID amount [currency] - Notes that the creator of the comment, who controls the given loan, has been paid back the 
+specified amount of money on that loan. Any excess money beyond that amount is not propagated to other loans, it's simply ignored. 
+This is helpful when you have more than one loan out with a particular user.
+
+->$unpaid /u/user - Sets every unfinished loan from the specified user to UNPAID. Note that posts that are marked unpaid can still be 
+affected by $paid summons, and when an unpaid loan is completely repaid the unpaid marker is automatically removed.
+
+$confirm /u/user amount - Replies with a comment that effectively restates the command in extremely clear terms. 
+This can be used to make sure that regardless of if a user edits/deletes their confirmation, the bots reply stays 
+there as proof. Example: If I were to say $confirm /u/rd_trude $50.00 the bot would respond with something effectively 
+stating that I have confirmed that /u/rd_trude has sent me $50.00.

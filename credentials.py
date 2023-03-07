@@ -5,6 +5,5 @@ client_secret='c5PexU5V63uQYOGeMQWAz0pqG1FN0w'
 user_agent="Reddit bot for bidding"
 mongo_uri="mongodb+srv://root:root@cluster.if4vaf9.mongodb.net/?retryWrites=true&w=majority"
 mongo_dbname="reddit"
-mongo_comment_collection="comments"
-mongo_post_collection="posts"
+mongo_collection="transactions"
 subreddit_name = "rktestingbtot"

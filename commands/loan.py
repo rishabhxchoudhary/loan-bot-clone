@@ -7,10 +7,10 @@
 
 import pymongo
 import re
-mongo_uri="mongodb+srv://root:root@cluster.if4vaf9.mongodb.net/?retryWrites=true&w=majority"
-mongo_dbname="reddit"
-mongo_collection="transactions"
-collection = pymongo.MongoClient(mongo_uri)[mongo_dbname][mongo_collection]
+#mongo_uri="mongodb+srv://root:root@cluster.if4vaf9.mongodb.net/?retryWrites=true&w=majority"
+#mongo_dbname="reddit"
+#mongo_collection="transactions"
+#collection = pymongo.MongoClient(mongo_uri)[mongo_dbname][mongo_collection]
 
 
 def loan(comment):

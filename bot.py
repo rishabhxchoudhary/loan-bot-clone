@@ -2,7 +2,20 @@ import praw
 import pymongo
 import credentials
 import threading
+import re
 
+def create_table_from_list(l):
+    final_string=""
+    for i in range(len(l)):
+        row="|"
+        for j in range(len(l[i])):
+            row+=str(l[i][j])+"|"
+        row+='\n'
+        if i==0:
+            row+=":--|"*(j+1)
+            row+='\n'
+        final_string+=row
+    return final_string
 
 class RedditBot:
     def __init__(self, client_id, client_secret, username, password, user_agent, target_subreddit):
@@ -139,11 +152,43 @@ class RedditBot:
 
     def handle_new_post(self, post):
         print(f'New post: {post.title}')
-        if post.title.startswith('!'):
-            command = post.title.split()[0].lower()[1:]
-            if command in self.commands:
-                post.body = post.title
-                self.commands[command](post)
+        if post.title.startswith("[REQ]"):
+            doc = {
+                "Borrower" : str(post.author),
+                "Lender": "",
+                "Amount Requested": int(re.search(r'\((.*?)\)',post.title).group(1)),
+                "Amount Given": 0,
+                "Given": False,
+                "Amount Repaid" : 0,
+                "Repaid":False,
+                "Orignal Thread": post.url,
+                "Date Given": None,
+                "Date Paid Back": None
+            }
+            amt = int(re.search(r'\((.*?)\)',post.title).group(1))
+            self.collection.insert_one(doc)
+            o = f'Here is information on {str(post.author)}\n\n'
+            l = [ ["Borrower","Lender","Amount Requested","Amount Given","Given","Amount Repaid","Repaid","Orignal Thread","Date Given","Date Paid Back"] ]
+            myquery = {'Borrower': str(post.author)}
+            requester_doc = self.collection.find(myquery)
+            for i in requester_doc:
+                    row = []
+                    for j in l[0]:
+                        row.append(i[j])
+                    l.append(row)
+            myquery = {'Lender': str(post.author)}
+            lender_doc = self.collection.find(myquery)
+            for i in lender_doc:
+                    row = []
+                    for j in l[0]:
+                        row.append(i[j])
+                    l.append(row)
+            o += create_table_from_list(l)
+            o+=f'''\n
+                Command to loan should be $loan {str(amt)}
+                \n
+            '''
+            post.reply(o)
 
     def listen_for_comments(self):
         print("Listening for comments")

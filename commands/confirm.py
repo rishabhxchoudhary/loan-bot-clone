@@ -71,7 +71,3 @@ def confirm(self,comment):
                  f"that **{comment_lender_name}** has given them amount of **{comment_amount_received}** $ to **{borrower_name}**"
               comment.reply(message)
 
-'''
-/u/Sad-Quit-303 has just confirmed that /u/chiefwinamac gave him/her 10.00 USD. 
-(Reference amount: 10.00 USD). We matched this confirmation with this loan (id=141089).
-'''

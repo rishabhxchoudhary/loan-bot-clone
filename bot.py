@@ -5,6 +5,10 @@ import threading
 import re
 import datetime
 
+#functions
+from commands.paid_with_id import paid_with_id
+
+
 def create_table_from_list(l):
     final_string=""
     for i in range(len(l)):
@@ -106,7 +110,6 @@ class RedditBot:
         message=f'num_requests:{num_requests},\nnum_lender:{num_lender}, \ncount_request_completed:{count_request_completed}'
         comment.reply(message)
 
-
     def returned(self, comment):
         id = comment.body.split()[1]
         myquery = {'id': id}
@@ -177,7 +180,7 @@ class RedditBot:
         if comment.body.strip().startswith('!'):
             command = comment.body.split()[0].lower()[1:]
             if command in self.commands:
-                self.commands[command](comment)
+                self.commands[command](self, comment)
             else:
                 message = "Invalid Command!"
                 comment.reply(message)

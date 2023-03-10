@@ -29,7 +29,7 @@ def get_info(s):
 
 def handle_new_post(user_id):
     o = f'Here is information on {user_id}\n\n'
-    l = [ ["Borrower","Lender","Amount Requested","Amount Given","Given","Amount Repaid","Repaid","Orignal Thread","Date Given","Date Paid Back"] ]
+    l = [ ["Borrower","Lender","Amount Requested","Amount Given","Given","Amount Repaid","Repaid","Orignal Thread","Date Given","Date Repaid"] ]
     myquery = {'Borrower': user_id}
     requester_doc = collection.find(myquery)
     for i in requester_doc:

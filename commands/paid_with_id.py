@@ -31,7 +31,6 @@ def paid_with_id(self, comment):
     # get the loan details from database with 'Orignal Thread' equal to post_url
     myquery = {'Orignal Thread': post_url}
     doc = self.collection.find_one(myquery)
-    # doc['Borrower']
 
     # check if the commenter is the borrower
     if author != doc['Borrower']:
@@ -55,7 +54,7 @@ def paid_with_id(self, comment):
         return
     # if all the above conditions are false, update the repaid to true, add transaction ID and Date Repaid to database
     newvalues = {"$set": {"Repaid": True, "Transaction ID": transaction_id,
-                          "Date Paid Back": datetime.datetime.now()}}
+                          "Date Repaid": datetime.datetime.now()}}
     message = f"Hi {author}, your loan of {doc['Amount Requested']} from [{doc['Lender']}](/u/{doc['Lender']}) has been marked repaid successfully. To confirm [{doc['Lender']}](/u/{doc['Lender']}) must reply with the following:" \
         f"""
             \n\n !paid {doc['Amount Given']}""" \

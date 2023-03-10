@@ -15,7 +15,7 @@ def create_table_from_list(l):
 
 if __name__ == "__main__":
     l = [
-        ["Lender","Borrower","Amount Given","Amount Repaid","Orignal Thread","Date Given","Date Paid Back"],
+        ["Lender","Borrower","Amount Given","Amount Repaid","Orignal Thread","Date Given","Date Repaid"],
         ["frumboldt21","mother_customer7570","500.00 USD","120.00 USD","https://www.reddit.com/comments/114z3yv/redditloans/j8z0nj7","Feb 17, 2023",""],
         ["frumboldt21","mother_customer7570","500.00 USD","120.00 USD","https://www.reddit.com/comments/114z3yv/redditloans/j8z0nj7","Feb 17, 2023",""]
         ]

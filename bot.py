@@ -3,6 +3,7 @@ import pymongo
 import credentials
 import threading
 import re
+import datetime
 
 #functions
 from commands.paid_with_id import paid_with_id
@@ -44,8 +45,38 @@ class RedditBot:
             'returned': self.returned,
             'returnedAccepted': self.returned_accepted,
             'history': self.history,
-            'paid\_with\_id': paid_with_id
+            'paid\_with\_id': self.paid_with_id
         }
+    
+    def paid_with_id(self,comment):
+        author = comment.author
+        post = comment.submission
+        post_url = post.url
+        comment_list = comment.body.split()
+        transaction_id = comment_list[1]
+        amount = int(comment_list[2])
+        myquery = {'Orignal Thread': post_url}
+        doc = self.collection.find_one(myquery)
+        if author != doc['Borrower']:
+            message = f"This was detected as the correct format for paying a loan with a given id, but you do not control this loan. Borrower username is {doc['Borrower']}. Please check the post again."
+            comment.reply(message)
+            return
+        if doc['Repaid'] == True:
+            message = f"This was detected as the correct format for paying a loan with a given id, but this loan is already repaid. Please check the post again."
+            comment.reply(message)
+            return
+        if doc['Given'] == False:
+            message = f"This was detected as the correct format for paying a loan with a given id, but this loan is not marked as given. Please check the post again."
+            comment.reply(message)
+            return
+        if amount != doc['Amount Requested']:
+            message = f"This was detected as the correct format for paying a loan with a given id, but the amount is not equal to the amount requested. Please check the post again."
+            comment.reply(message)
+            return
+        newvalues = {"$set": {"Repaid": True, "Transaction ID": transaction_id, "Date Repaid": datetime.datetime.now()}}
+        self.collection.update_one(myquery, newvalues)
+        message = f"This was detected as the correct format for paying a loan with a given id. The loan has been marked as repaid. Reply with !paid to confirm."
+        comment.reply(message)
 
     def accept(self, comment):
         id = comment.body.split()[1]
@@ -167,7 +198,7 @@ class RedditBot:
                 "Repaid":False,
                 "Orignal Thread": post.url,
                 "Date Given": None,
-                "Date Paid Back": None
+                "Date Repaid": None
             }
             amt = int(re.search(r'\((.*?)\)',post.title).group(1))
             self.collection.insert_one(doc)

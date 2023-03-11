@@ -52,8 +52,38 @@ class RedditBot:
             'paid\_with\_id': self.paid_with_id,
             'paid': self.paid,
             'loan': self.loan,
-            'confirm': self.confirm
+            'confirm': self.confirm,
+            'status': self.status
         }
+
+    def status(self, comment):
+        user_id = comment.body.split()[1]
+        o = f'Here is information on {user_id}\n\n'
+        l = [["Borrower", "Lender", "Amount Requested", "Amount Given", "Given",
+              "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+        myquery = {'Borrower': str(user_id)}
+        requester_doc = self.collection.find(myquery)
+        for i in requester_doc:
+            row = []
+            for j in l[0]:
+                try:
+                    row.append(i[j])
+                except Exception as e:
+                    print(e)
+                    row.append(None)
+            l.append(row)
+        myquery = {'Lender': str(user_id)}
+        lender_doc = self.collection.find(myquery)
+        for i in lender_doc:
+            row = []
+            for j in l[0]:
+                try:
+                    row.append(i[j])
+                except Exception as e:
+                    print(e)
+            l.append(row)
+        o += create_table_from_list(l)
+        comment.reply(o)
 
     def confirm(self, comment):
         post = comment.submission
@@ -121,7 +151,6 @@ class RedditBot:
             message = f"Maximum Amount you can Lend is {loan_amount_max_asked} $"
             comment.reply(message)
 
-
     def paid_with_id(self, comment):
         author = comment.author
         post = comment.submission
@@ -157,7 +186,7 @@ class RedditBot:
             return
         # if all the above conditions are false, update the repaid to true, add transaction ID and Date Repaid to database
         newvalues = {"$set": {"Repaid": True, "Transaction ID": transaction_id,
-                            "Date Repaid": datetime.datetime.now()}}
+                              "Date Repaid": datetime.datetime.now()}}
         message = f"Hi {author}, your loan of {doc['Amount Requested']} from [{doc['Lender']}](/u/{doc['Lender']}) has been marked repaid successfully. To confirm [{doc['Lender']}](/u/{doc['Lender']}) must reply with the following:" \
             f"""
             \n\n !paid {doc['Amount Given']}""" \
@@ -190,8 +219,7 @@ class RedditBot:
         message = f"Hi {author}, your loan of {doc['Amount Given']} to [{doc['Borrower']}](/u/{doc['Borrower']}) has been confirmed successfully. For any further queries, please contact the moderators."
         self.collection.update_one(myquery, newvalues)
         comment.reply(message)
-        return        
-
+        return
 
     def accept(self, comment):
         id = comment.body.split()[1]

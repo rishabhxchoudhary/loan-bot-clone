@@ -19,6 +19,7 @@ The loan is not already marked as repaid
 import datetime
 from commands.create_table_from_list import create_table_from_list
 
+
 def paid_with_id(self, comment):
     author = comment.author
     post = comment.submission
@@ -33,26 +34,30 @@ def paid_with_id(self, comment):
 
     # check if the commenter is the borrower
     if author != doc['Borrower']:
-        message = f"This was detected as the correct format for paying a loan with a given id, but you do not control this loan. Borrower username is {doc['Borrower']}. Please check the post again."
+        message = f"Hi {author}, \nThis loan request was not made by you. It was made by [{doc['Borrower']}](/u/{doc['Borrower']}). Please check the post again."
         comment.reply(message)
         return
     # check if the loan is already repaid
     if doc['Repaid'] == True:
-        message = f"This was detected as the correct format for paying a loan with a given id, but this loan is already repaid. Please check the post again."
+        message = f"Hi {author}, \nThis loan has already been repaid by [{doc['Lender']}](/u/{doc['Lender']}). Please check the post again."
         comment.reply(message)
         return
     # check if the 'given' field is true
     if doc['Given'] == False:
-        message = f"This was detected as the correct format for paying a loan with a given id, but this loan is not marked as given. Please check the post again."
+        message = f"Hi {author}, \nThis loan has not been lended yet. Please check the post again."
         comment.reply(message)
         return
     # check if amount is equal to amount requested
     if amount != doc['Amount Requested']:
-        message = f"This was detected as the correct format for paying a loan with a given id, but the amount is not equal to the amount requested. Please check the post again."
+        message = f"Hi {author}, \nThe amount you are trying to repay is not equal to the amount requested. Requested amount is {doc['Amount Requested']}. Please check the post again."
         comment.reply(message)
         return
     # if all the above conditions are false, update the repaid to true, add transaction ID and Date Repaid to database
-    newvalues = {"$set": {"Repaid": True, "Transaction ID": transaction_id, "Date Paid Back": datetime.datetime.now()}}
+    newvalues = {"$set": {"Repaid": True, "Transaction ID": transaction_id,
+                          "Date Repaid": datetime.datetime.now()}}
+    message = f"Hi {author}, your loan of {doc['Amount Requested']} from [{doc['Lender']}](/u/{doc['Lender']}) has been marked repaid successfully. To confirm [{doc['Lender']}](/u/{doc['Lender']}) must reply with the following:" \
+        f"""
+            \n\n !paid {doc['Amount Given']}""" \
+        f"\n\n**Transaction ID:** {transaction_id} **Date Repaid:** {datetime.datetime.now()}"
     self.collection.update_one(myquery, newvalues)
-    message = f"This was detected as the correct format for paying a loan with a given id. The loan has been marked as repaid. Reply with !paid to confirm."
     comment.reply(message)

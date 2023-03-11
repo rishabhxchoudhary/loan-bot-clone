@@ -1,9 +1,28 @@
-# Sample Input - (comment)
-# comment.body = "$loan 10"
-#amount requested check
+"""
+Function Name: loan()
+
+**Description**:
+    This function processes loan requests made by borrowers on Reddit. It verifies the loan amount requested by the borrower and updates the database with the lender's name and the proposed loan amount. The lender's proposed loan amount will be marked as "amount_proposed" in the database until it is confirmed by the borrower using the confirm() function.
+
+**Sample Input**:
+    The input to this function is a comment on Reddit containing the loan request. For example: !loan 10
+
+**Logic**:
+    1. Verify that the loan amount proposed by the lender is within the range (0, loan_amount_max_asked by the borrower].
+    2. Update the database with the lender's name and the amount proposed by them. We will use the "amount_proposed" column in the database for this purpose.
+    3. Set the "lended" variable to True. This variable ensures that the confirm() function can only be run after the loan() function has been called.
+    4. The "given" column in the database is initially set to False and will only be updated to True after the borrower confirms the loan using the confirm() function.
+
+**Edge Cases**:
+    - If the loan amount proposed by the lender is greater than the loan_amount_max_asked by the borrower, the function will not update the     database and will return an error message.
+    - The "lended" variable will only be set to True when the loan() function is called. If the bot is restarted and there are loan requests that have not been confirmed, the confirm() function will not work until the loan() function is called again.
+
+**Suggestions**:
+    - To avoid confusion, we suggest using the term "amount_proposed" instead of "amount_given" in the database to represent the loan amount proposed by the lender.
+    - The "lended" variable is useful for ensuring that the confirm() function can only be run after the loan() function has been called. However, care should be taken to ensure that the variable is updated correctly when the bot is restarted.
 
 
-# Sample output
+"""
 
 import pymongo
 import re

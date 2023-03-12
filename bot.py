@@ -353,14 +353,22 @@ class RedditBot:
             for i in requester_doc:
                 row = []
                 for j in l[0]:
-                    row.append(i[j])
+                    try:
+                        row.append(i[j])
+                    except Exception as e:
+                        print(e)
+                        row.append(None)
                 l.append(row)
             myquery = {'Lender': str(post.author)}
             lender_doc = self.collection.find(myquery)
             for i in lender_doc:
                 row = []
                 for j in l[0]:
-                    row.append(i[j])
+                    try:
+                        row.append(i[j])
+                    except Exception as e:
+                        print(e)
+                        row.append(None)
                 l.append(row)
             o += create_table_from_list(l)
             o += f'''\n

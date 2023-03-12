@@ -41,14 +41,8 @@ class RedditBot:
         self.post_stream = self.subreddit.stream.submissions()
         self.comment_stream = self.subreddit.stream.comments()
         self.commands = {
-            'greet': self.greet_command,
             'help': self.help_command,
-            'request': self.request,
-            'accept': self.accept,
             'paid': self.paid_command,
-            'returned': self.returned,
-            'returnedAccepted': self.returned_accepted,
-            'history': self.history,
             'paid\_with\_id': self.paid_with_id,
             'paid': self.paid,
             'loan': self.loan,
@@ -221,63 +215,6 @@ class RedditBot:
         comment.reply(message)
         return
 
-    def accept(self, comment):
-        id = comment.body.split()[1]
-        myquery = {'id': id}
-        doc = self.collection.find_one(myquery)
-        if doc["requester"] == comment.author.name:
-            newvalues = {"$set": {"payment_received": True}}
-            self.collection.update_one(myquery, newvalues)
-            message = f"Payment has been accepted for id = {id}"
-            comment.reply(message)
-        else:
-            message = f"Only the requester can make an accept request!"
-            comment.reply(message)
-
-    def history(self, comment):
-        user_id = comment.body.split()[1]
-        myquery = {'requester': user_id}
-        requester_doc = self.collection.find(myquery)
-
-        myquery = {'lender': user_id}
-        lender_doc = self.collection.find(myquery)
-
-        count_request_completed = 0
-        num_requests = len(list(requester_doc))
-        num_lender = len(list(lender_doc))
-
-        for requester in requester_doc:
-            if (requester['paid'] == True and requester['payment_received'] == True and requester['returned'] == True and requester['returned_received'] == True):
-                count_request_completed += 1
-
-        message = f'num_requests:{num_requests},\nnum_lender:{num_lender}, \ncount_request_completed:{count_request_completed}'
-        comment.reply(message)
-
-    def returned(self, comment):
-        id = comment.body.split()[1]
-        myquery = {'id': id}
-        doc = self.collection.find_one(myquery)
-        if doc["requester"] == comment.author.name:
-            newvalues = {"$set": {"returned": True}}
-            self.collection.update_one(myquery, newvalues)
-            message = f"Payment has been accepted for id = {id}"
-            comment.reply(message)
-        else:
-            message = f"Only the requester can make a returned request!"
-            comment.reply(message)
-
-    def returned_accepted(self, comment):
-        id = comment.body.split()[1]
-        myquery = {'id': id}
-        doc = self.collection.find_one(myquery)
-        if doc["lender"] == comment.author.name:
-            newvalues = {"$set": {"returned_accepted": True}}
-            self.collection.update_one(myquery, newvalues)
-            message = f"Payment has been returned for id = {id}. Transaction has been closed now."
-            comment.reply(message)
-        else:
-            message = f"Only the lender can make an accepted return request!"
-            comment.reply(message)
 
     def paid_command(self, comment):
         print("Payment processing")
@@ -292,23 +229,6 @@ class RedditBot:
         self.collection.update_one({'id': object_id}, {'$set': {'paid': True}})
         self.collection.update_one(
             {'id': object_id}, {'$set': {'lender': lender_name}})
-        comment.reply(message)
-
-    def request(self, comment):
-        data = {'id': comment.id,
-                'requester': comment.author.name,
-                'lender': "",
-                'paid': False,
-                'payment_received': False,
-                'returned': False,
-                'returned_received': False,
-                }
-        self.collection.insert_one(data)
-        message = f"You request has been opened with ID : {comment.id}"
-        comment.reply(message)
-
-    def greet_command(self, comment):
-        message = f'Hello, {comment.author.name}! How are you today?'
         comment.reply(message)
 
     def help_command(self, comment):

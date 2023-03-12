@@ -4,13 +4,7 @@ import credentials
 import threading
 import re
 import datetime
-
-# functions
-from commands.paid_with_id import paid_with_id
-
-
-lended = False
-
+import random
 
 def create_table_from_list(l):
     final_string = ""
@@ -24,6 +18,21 @@ def create_table_from_list(l):
             row += '\n'
         final_string += row
     return final_string
+
+# UTC - DD MM YYYY
+
+# Transactions 
+# {
+#     "Lender": "Name",
+#     "Amount Given": 2432,
+#     "Amount Repaid": 0,
+#     "Given?": False,
+#     "ID": 12345,
+#     "UNPAID?":"",
+#     "Date Given": None,
+#     "Date Paid Back" : None
+
+# }
 
 
 class RedditBot:
@@ -42,42 +51,103 @@ class RedditBot:
         self.comment_stream = self.subreddit.stream.comments()
         self.commands = {
             'help': self.help_command,
-            'paid': self.paid_command,
+            'loan': self.loan,
             'paid\_with\_id': self.paid_with_id,
             'paid': self.paid,
-            'loan': self.loan,
             'confirm': self.confirm,
-            'status': self.status
+            'check': self.check
         }
 
-    def status(self, comment):
-        user_id = comment.body.split()[1]
-        o = f'Here is information on {user_id}\n\n'
-        l = [["Borrower", "Lender", "Amount Requested", "Amount Given", "Given",
-              "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
-        myquery = {'Borrower': str(user_id)}
-        requester_doc = self.collection.find(myquery)
-        for i in requester_doc:
-            row = []
-            for j in l[0]:
-                try:
-                    row.append(i[j])
-                except Exception as e:
-                    print(e)
-                    row.append(None)
-            l.append(row)
-        myquery = {'Lender': str(user_id)}
-        lender_doc = self.collection.find(myquery)
-        for i in lender_doc:
-            row = []
-            for j in l[0]:
-                try:
-                    row.append(i[j])
-                except Exception as e:
-                    print(e)
-            l.append(row)
-        o += create_table_from_list(l)
-        comment.reply(o)
+    def handle_new_post(self, post):
+        print(f'New post: {post.title}')
+        if post.title.startswith("[REQ]"):
+            doc = {
+                "Borrower": str(post.author),
+                "Amount Requested": int(re.search(r'\((.*?)\)', post.title).group(1)),
+                "Amount Given": 0,
+                "Amount Repaid": 0,
+                "Orignal Thread": post.url,
+                "Transactions" : [],
+            }
+            amt = int(re.search(r'\((.*?)\)', post.title).group(1))
+            self.collection.insert_one(doc)
+            o = f'Here is information on {str(post.author)}\n\n'
+            l = [["Borrower", "Lender", "Amount Requested", "Amount Given", "Given",
+                  "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+            myquery = {'Borrower': str(post.author)}
+            requester_doc = self.collection.find(myquery)
+            for i in requester_doc:
+                row = []
+                for j in l[0]:
+                    try:
+                        row.append(i[j])
+                    except Exception as e:
+                        print(e)
+                        row.append(None)
+                l.append(row)
+            myquery = {'Lender': str(post.author)}
+            lender_doc = self.collection.find(myquery)
+            for i in lender_doc:
+                row = []
+                for j in l[0]:
+                    try:
+                        row.append(i[j])
+                    except Exception as e:
+                        print(e)
+                        row.append(None)
+                l.append(row)
+            o += create_table_from_list(l)
+            o += f'''\n
+                Command to loan should be !loan {str(amt)}
+                \n
+            '''
+            post.reply(o)
+
+    def loan(self, comment):
+        post = comment.submission
+        post_url = post.url
+        myquery = {'Orignal Thread': post_url}
+        doc = self.collection.find(myquery)
+        arr = doc["Transactions"]
+        loan_amount_given = float(comment.body.split()[1])  # 10
+        amount_give_till_now = float(doc["Amount Given"])
+        loan_amount_max_asked = int(
+            re.search(r'\((.*?)\)', comment.submission.title).group(1))
+        lender_name = comment.author.name
+        borrower_name = comment.submission.author
+        paid_with_id = random.randint(10000,99999)
+        if loan_amount_max_asked-amount_give_till_now>=loan_amount_given:
+            new_doc = {
+                    "Lender": comment.author,
+                    "Amount Given": loan_amount_given,
+                    "Amount Repaid": 0,
+                    "Given?": False,
+                    "ID": paid_with_id,
+                    "UNPAID?":"",
+                    "Date Given": datetime.datetime.now(),
+                    "Date Paid Back" : None
+                }
+            arr.append(new_doc)
+            newvalues = {"$set": {"Transactions": arr}}
+            self.collection.update_one(myquery, newvalues)
+            highlighted_text_1 = "$confirm {} {} USD".format(lender_name, loan_amount_given)
+            highlighted_text_2 = "$paid_with_id {} {} USD".format(paid_with_id, loan_amount_given)
+            message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
+                f"The format of the confirm command will be:\n"\
+                f"""
+            {highlighted_text_1}""" \
+            f"\n\nIf you wish to mark this loan repaid later, you can use:\n"\
+                f"""
+            {highlighted_text_2}""" \
+            f"\n\n  "\
+                f"\n\nThis does NOT verify that [{lender_name}](/u/{lender_name}) actually lent anything to [{borrower_name}](/u/{borrower_name});\n\n " \
+                f"[{borrower_name}](/u/{borrower_name}) should confirm here or nearby that the money was sent" \
+                f"\n\n**If the loan transaction did not work out and needs to be refunded then the lender should" \
+                f"reply to this comment with 'Refunded' and moderators will be automatically notified**"
+            comment.reply(message)
+        else:
+            message = f"\u\{comment.author} \n Maximum Amount you can Lend is {loan_amount_max_asked-amount_give_till_now}$"
+            comment.reply(message)
 
     def confirm(self, comment):
         post = comment.submission
@@ -103,46 +173,6 @@ class RedditBot:
         else:
             message = f"Cannot Confirm\n\n"\
                 f"that **{comment_lender_name}** has given them amount of **{comment_amount_received}** $ to **{borrower_name}**"
-            comment.reply(message)
-
-    def loan(self, comment):
-        global lended
-        post = comment.submission
-        post_url = post.url
-        myquery = {'Orignal Thread': post_url}
-        doc = self.collection.find(myquery)
-        loan_command = comment.body.split()[0]  # $loan
-        loan_amount_given = int(comment.body.split()[1])  # 10
-        loan_amount_max_asked = int(
-            re.search(r'\((.*?)\)', comment.submission.title).group(1))
-        lender_name = comment.author.name
-        borrower_name = comment.submission.author
-        paid_with_id = "XXXXX"
-        if loan_amount_given <= loan_amount_max_asked and loan_amount_given > 0:
-            lended = True
-            highlighted_text_1 = "!confirm {} {} USD".format(
-                lender_name, loan_amount_given)
-            highlighted_text_2 = "!paid_with_id {} {} USD".format(
-                paid_with_id, loan_amount_given)
-            message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
-                f"The format of the confirm command will be:\n"\
-                f"""
-            {highlighted_text_1}""" \
-            f"\n\nIf you wish to mark this loan repaid later, you can use:\n"\
-                f"""
-            {highlighted_text_2}""" \
-            f"\n\n  "\
-                f"\n\nThis does NOT verify that [{lender_name}](/u/{lender_name}) actually lent anything to [{borrower_name}](/u/{borrower_name});\n\n " \
-                f"[{borrower_name}](/u/{borrower_name}) should confirm here or nearby that the money was sent" \
-                f"\n\n**If the loan transaction did not work out and needs to be refunded then the lender should" \
-                f"reply to this comment with 'Refunded' and moderators will be automatically notified**"
-            comment.reply(message)
-            myquery = {'Orignal Thread': post_url}
-            newvalues = {"$set": {"Lender": lender_name,
-                                  "Amount Given": loan_amount_given}}
-            self.collection.update_one(myquery, newvalues)
-        else:
-            message = f"Maximum Amount you can Lend is {loan_amount_max_asked} $"
             comment.reply(message)
 
     def paid_with_id(self, comment):
@@ -215,21 +245,34 @@ class RedditBot:
         comment.reply(message)
         return
 
-
-    def paid_command(self, comment):
-        print("Payment processing")
-        object_id = comment.body.split()[1]
-        lender_name = comment.author.name
-        transaction = self.collection.find_one({'id': object_id})
-        if transaction is None:
-            comment.reply(f'Error: transaction with id {object_id} not found')
-            return
-        requester = transaction['requester']
-        message = f'Hi, {lender_name}! You have paid {requester} for their request. {requester}please confirm by replying to this comment with !accept {object_id}'
-        self.collection.update_one({'id': object_id}, {'$set': {'paid': True}})
-        self.collection.update_one(
-            {'id': object_id}, {'$set': {'lender': lender_name}})
-        comment.reply(message)
+    def check(self, comment):
+        user_id = comment.body.split()[1]
+        o = f'Here is information on {user_id}\n\n'
+        l = [["Borrower", "Lender", "Amount Requested", "Amount Given", "Given",
+              "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+        myquery = {'Borrower': str(user_id)}
+        requester_doc = self.collection.find(myquery)
+        for i in requester_doc:
+            row = []
+            for j in l[0]:
+                try:
+                    row.append(i[j])
+                except Exception as e:
+                    print(e)
+                    row.append(None)
+            l.append(row)
+        myquery = {'Lender': str(user_id)}
+        lender_doc = self.collection.find(myquery)
+        for i in lender_doc:
+            row = []
+            for j in l[0]:
+                try:
+                    row.append(i[j])
+                except Exception as e:
+                    print(e)
+            l.append(row)
+        o += create_table_from_list(l)
+        comment.reply(o)
 
     def help_command(self, comment):
         message = 'Here are the available commands: '
@@ -240,62 +283,13 @@ class RedditBot:
 
     def handle_new_comment(self, comment):
         print(f'New Comment:', comment.body)
-        if comment.body.strip().startswith('!'):
+        if comment.body.strip().startswith('$'):
             command = comment.body.split()[0].lower()[1:]
             if command in self.commands:
                 self.commands[command](comment)
             else:
                 message = "Invalid Command!"
                 comment.reply(message)
-
-    def handle_new_post(self, post):
-        print(f'New post: {post.title}')
-        if post.title.startswith("[REQ]"):
-            doc = {
-                "Borrower": str(post.author),
-                "Lender": "",
-                "Amount Requested": int(re.search(r'\((.*?)\)', post.title).group(1)),
-                "Amount Given": 0,
-                "Given": False,
-                "Amount Repaid": 0,
-                "Repaid": False,
-                "Orignal Thread": post.url,
-                "Date Given": None,
-                "Date Repaid": None
-            }
-            amt = int(re.search(r'\((.*?)\)', post.title).group(1))
-            self.collection.insert_one(doc)
-            o = f'Here is information on {str(post.author)}\n\n'
-            l = [["Borrower", "Lender", "Amount Requested", "Amount Given", "Given",
-                  "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
-            myquery = {'Borrower': str(post.author)}
-            requester_doc = self.collection.find(myquery)
-            for i in requester_doc:
-                row = []
-                for j in l[0]:
-                    try:
-                        row.append(i[j])
-                    except Exception as e:
-                        print(e)
-                        row.append(None)
-                l.append(row)
-            myquery = {'Lender': str(post.author)}
-            lender_doc = self.collection.find(myquery)
-            for i in lender_doc:
-                row = []
-                for j in l[0]:
-                    try:
-                        row.append(i[j])
-                    except Exception as e:
-                        print(e)
-                        row.append(None)
-                l.append(row)
-            o += create_table_from_list(l)
-            o += f'''\n
-                Command to loan should be !loan {str(amt)}
-                \n
-            '''
-            post.reply(o)
 
     def listen_for_comments(self):
         print("Listening for comments")

@@ -63,13 +63,13 @@ class RedditBot:
         if post.title.startswith("[REQ]"):
             doc = {
                 "Borrower": str(post.author),
-                "Amount Requested": int(re.search(r'\((.*?)\)', post.title).group(1)),
+                "Amount Requested": float(re.search(r'\((.*?)\)', post.title).group(1)),
                 "Amount Given": 0,
                 "Amount Repaid": 0,
                 "Orignal Thread": post.url,
                 "Transactions" : {},
             }
-            amt = int(re.search(r'\((.*?)\)', post.title).group(1))
+            amt = float(re.search(r'\((.*?)\)', post.title).group(1))
             self.collection.insert_one(doc)
             o = f'Here is information on {str(post.author)}\n\n'
             l = [["Borrower", "Lender", "Amount Requested", "Amount Given", "Given",
@@ -112,7 +112,7 @@ class RedditBot:
         print(arr)
         loan_amount_given = float(comment.body.split()[1])
         amount_give_till_now = float(doc["Amount Given"])
-        loan_amount_max_asked = int(
+        loan_amount_max_asked = float(
             re.search(r'\((.*?)\)', comment.submission.title).group(1))
         lender_name = comment.author.name
         borrower_name = comment.submission.author
@@ -167,7 +167,7 @@ class RedditBot:
         if  paid_with_id in  transactions:
             print("inside confirm")
             transactions[paid_with_id]["Given?"]=True
-            existing_amt_given+=comment_amount_received
+            existing_amt_given+=float(comment_amount_received)
             message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{comment_lender_name}](/u/{comment_lender_name}) gave him/her {comment_amount_received} USD. (Reference amount: {amount_requested} USD). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
                 f"___________________________________________________"\
                 f"\n\nThe purpose of responding to $confirm is to ensure the comment doesn't get edited.\n"
@@ -196,8 +196,8 @@ class RedditBot:
         comment_amount_received = comment.body.split()[2]
         borrower_name = comment.submission.author
         if paid_with_id in transactions:
-            transactions[paid_with_id]["Amount Repaid"]+=comment_amount_received
-            existing_repaid_amount+=comment_amount_received
+            transactions[paid_with_id]["Amount Repaid"]+=float(comment_amount_received)
+            existing_repaid_amount+=float(comment_amount_received)
             newvalues = {
                 "$set": {
                 "Transactions":transactions,"Amount Repaid":existing_repaid_amount, "Date Paid Back": datetime.datetime.now()

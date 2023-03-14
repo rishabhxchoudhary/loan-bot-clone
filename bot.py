@@ -153,26 +153,26 @@ class RedditBot:
     # Given - True
     def confirm(self, comment):
         post = comment.submission
+        comment_lender_name = str(post.author)
         post_url = post.url
         myquery = {'Orignal Thread': post_url}
         doc = self.collection.find_one(myquery)
-        existing_amt_given = 
+        existing_amt_given = doc["Amount Given"]
+        amount_requested = doc["Amount Requested"]
         transactions = doc["Transactions"]
         paid_with_id = comment.body.split()[1]
-        
-        borrower_name = comment.submission.author
         comment_amount_received = comment.body.split()[2]
+        borrower_name = comment.submission.author
         if  paid_with_id in  transactions:
             print("inside confirm")
             transactions[paid_with_id]["Given?"]=True
-            
-
-            message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{comment_lender_name}](/u/{comment_lender_name}) gave him/her {comment_amount_received} USD. (Reference amount: ???? USD). We matched this confirmation with this [loan]({post_url}) (id={loan_id}).\n\n" \
+            existing_amt_given+=comment_amount_received
+            message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{comment_lender_name}](/u/{comment_lender_name}) gave him/her {comment_amount_received} USD. (Reference amount: {amount_requested} USD). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
                 f"___________________________________________________"\
-                f"\n\nThe purpose of responding to !confirm is to ensure the comment doesn't get edited.\n"
+                f"\n\nThe purpose of responding to $confirm is to ensure the comment doesn't get edited.\n"
             comment.reply(message)
             myquery = {'Orignal Thread': post_url}
-            newvalues = {  "$set": {"Transactions":{"Given": True}}}
+            newvalues = {  "$set": {"Transactions":transactions,"Amount Given":existing_amt_given}}
             self.collection.update_one(myquery, newvalues)
         else:
             message = f"Cannot Confirm\n\n"\
@@ -182,8 +182,34 @@ class RedditBot:
 
     #  Traverse till found id, add to amount REPAID.
     def paid_with_id(self, comment):
-        author = comment.author
         post = comment.submission
+        comment_lender_name = str(post.author)
+        post_url = post.url
+        myquery = {'Orignal Thread': post_url}
+        doc = self.collection.find_one(myquery)
+        # existing_amt_given = doc["Amount Given"]
+        existing_repaid_amount = doc["Amount Repaid"]
+        # amount_requested = doc["Amount Requested"]
+        transactions = doc["Transactions"]
+        paid_with_id = comment.body.split()[1]
+        comment_amount_received = comment.body.split()[2]
+        borrower_name = comment.submission.author
+        if paid_with_id in transactions:
+            transactions[paid_with_id]["Amount Repaid"]+=comment_amount_received
+            existing_repaid_amount+=comment_amount_received
+            newvalues = {
+                "$set": {
+                "Transactions":transactions,"Amount Repaid":existing_repaid_amount, "Date Paid Back": datetime.datetime.now()
+                }
+            }
+            self.collection.update_one(myquery, newvalues)
+            message = f"Hi {str(comment.author)}, your loan of {comment_amount_received} from [{comment_lender_name}](/u/{comment_lender_name}) has been marked repaid successfully. To confirm [{borrower_name}](/u/{borrower_name}) must reply with the following:" \
+            f"""
+            \n\n $paid {paid_with_id} {comment_amount_received}""" \
+            f"\n\n**Transaction ID:** {paid_with_id} **Date Repaid:** {datetime.datetime.now()}"
+        self.collection.update_one(myquery, newvalues)
+        comment.reply(message)
+
         # post_url = post.url
         # # break the comment into list of words
         # comment_list = comment.body.split()
@@ -282,7 +308,7 @@ class RedditBot:
     def help_command(self, comment):
         message = 'Here are the available commands: '
         for command in self.commands.keys():
-            message += f'!{command}, '
+            message += f'${command}, '
         message = message[:-2]
         comment.reply(message)
 

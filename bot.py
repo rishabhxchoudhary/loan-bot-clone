@@ -117,7 +117,29 @@ class RedditBot:
         lender_name = comment.author.name
         borrower_name = comment.submission.author
         paid_with_id = str(random.randint(10000,99999))
-        if loan_amount_max_asked-amount_give_till_now>=loan_amount_given:
+        Given = (doc["Given?"])
+    
+        #searching transaction id with following lenders name
+        #we can also check if he has repaid the earlier loan
+        for id in arr: 
+            #When person giving loan again we dont have acces of his previous  
+            if id["Lender"]==lender_name and id["Given?"] == False:   
+
+                message = f" {lender_name}, you are not authorized to pay loan again unless your previous loan with id {id} has been confirmed by {borrower_name}"
+                comment.reply(message)
+                return
+            if id["Lender"]==lender_name and id["Completed?"] == False:   
+
+                message = f" {lender_name}, you are not authorized to pay loan again unless your previous loan with id {id} has been completed by {borrower_name}"
+                comment.reply(message)
+                return
+            
+            elif id["Lender"]==lender_name and id["Given?"] == True:
+                message = f" {lender_name}, You have paid {id['Amount Given']} to {borrower_name} on {id['Date Given']} \n\n Now a new record will be created for you current payment"
+                comment.reply(message)
+
+
+        if  loan_amount_max_asked-amount_give_till_now >= loan_amount_given and loan_amount_given>0:
             new_doc = {
                     "Lender": str(comment.author),
                     "Amount Given": loan_amount_given,
@@ -132,6 +154,7 @@ class RedditBot:
             arr[paid_with_id] = new_doc
             newvalues = {"$set": {"Transactions": arr}}
             self.collection.update_one(myquery, newvalues)
+
             highlighted_text_1 = "$confirm {} {} USD".format(paid_with_id, loan_amount_given)
             highlighted_text_2 = "$repaid_with_id {} {} USD".format(paid_with_id, loan_amount_given)
             message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
@@ -151,7 +174,8 @@ class RedditBot:
             message = f"{comment.author} \n Maximum Amount you can Lend is {loan_amount_max_asked-amount_give_till_now} $"
             comment.reply(message)
 
-    # Given - True
+
+
     def confirm(self, comment):
         post = comment.submission
         comment_lender_name = str(post.author)
@@ -164,10 +188,29 @@ class RedditBot:
         paid_with_id = comment.body.split()[1]
         comment_amount_received = comment.body.split()[2]
         borrower_name = comment.submission.author
+        comment_author = comment.author
+        
+        lender_name = doc["Transactions"]["Lender"]
+        lender_actual_amount_given = transactions[paid_with_id]['Amount Given']
+
+
+        
         if  paid_with_id in  transactions:
+
+            if borrower_name != comment_author:
+                message = f"{comment_author}, you are not authorized to confirm this loan. Only [{borrower_name}](/u/{borrower_name}) can do this."
+                comment.reply(message)
+                return
+            
+            if comment_amount_received != lender_actual_amount_given:
+                message = f"{comment_author}, Cannot confirm the loan.\n\n The Amount {comment_amount_received}$ you are confirming doesnt match what {lender_name } has paid"
+                comment.reply(message)
+                return
+            
             print("inside confirm")
             transactions[paid_with_id]["Given?"]=True
             existing_amt_given+=float(comment_amount_received)
+
             message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{comment_lender_name}](/u/{comment_lender_name}) gave him/her {comment_amount_received} USD. (Reference amount: {amount_requested} USD). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
                 f"___________________________________________________"\
                 f"\n\nThe purpose of responding to $confirm is to ensure the comment doesn't get edited.\n"

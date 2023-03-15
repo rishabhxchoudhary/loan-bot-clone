@@ -52,8 +52,8 @@ class RedditBot:
         self.commands = {
             'help': self.help_command,
             'loan': self.loan,
-            'paid\_with\_id': self.paid_with_id,
-            'paid': self.paid,
+            'repaid\_with\_id': self.repaid_with_id,
+            'repaid\_confirm': self.repaid_confirm,
             'confirm': self.confirm,
             'check': self.check
         }
@@ -133,7 +133,7 @@ class RedditBot:
             newvalues = {"$set": {"Transactions": arr}}
             self.collection.update_one(myquery, newvalues)
             highlighted_text_1 = "$confirm {} {} USD".format(paid_with_id, loan_amount_given)
-            highlighted_text_2 = "$paid_with_id {} {} USD".format(paid_with_id, loan_amount_given)
+            highlighted_text_2 = "$repaid_with_id {} {} USD".format(paid_with_id, loan_amount_given)
             message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
                 f"The format of the confirm command will be:\n"\
                 f"""
@@ -182,123 +182,128 @@ class RedditBot:
 
 
     #  Traverse till found id, add to amount REPAID.
-    def paid_with_id(self, comment):
+    def repaid_with_id(self, comment):
         post = comment.submission
-        comment_lender_name = str(post.author)
         post_url = post.url
         myquery = {'Orignal Thread': post_url}
         doc = self.collection.find_one(myquery)
-        # existing_amt_given = doc["Amount Given"]
-        existing_repaid_amount = doc["Amount Repaid"]
-        # amount_requested = doc["Amount Requested"]
         transactions = doc["Transactions"]
-        paid_with_id = comment.body.split()[1]
-        comment_amount_received = comment.body.split()[2]
+        id = comment.body.split()[1]
+        comment_amount_repaid = comment.body.split()[2]
         borrower_name = comment.submission.author
-        if paid_with_id in transactions:
-            transactions[paid_with_id]["Amount Repaid"]+=float(comment_amount_received)
-            existing_repaid_amount+=float(comment_amount_received)
+        comment_author = comment.author
+        if id in transactions:
+            #check if borrower name is same as comment author
+            lender_name = transactions[id]["Lender"]
+
+            if borrower_name != comment_author:
+                message = f"Hi {str(comment.author)}, you are not authorized to mark this loan as repaid. Only [{borrower_name}](/u/{borrower_name}) can do this."
+                comment.reply(message)
+                return
+            
+            #check if loan has been marked given then wait for borrower to confirm
+            if transactions[id]["Given?"] == False:
+                message = f"Hi {str(comment.author)}, You have not confirmed that [{lender_name}](/u/{lender_name}) has given you the loan. Please confirm this first."
+                comment.reply(message)
+                return
+
+            #check if comment_amount_repaid is same as amount given in transaction
+            if comment_amount_repaid != transactions[id]["Amount Given"]:
+                message = f"Hi {str(comment.author)}, the amount you have entered to mark this loan as repaid is not the same as the amount given in the transaction. Please enter the correct amount."
+                comment.reply(message)
+                return
+            
+            #check if transaction is completed
+            if transactions[id]["Completed"] == True:
+                message = f"Hi {str(comment.author)}, this transaction is already completed."
+                comment.reply(message)
+                return
+            
+            #if transaction amount repaid is not zero, i.e., author has already repaid the loan but lender has not confirmed it.
+            if transactions[id]["Amount Repaid"] != 0:
+                message = f"Hi {str(comment.author)}, you have already repaid this loan. Please wait for [{lender_name}](/u/{lender_name}) to confirm this."
+                comment.reply(message)
+                return
+
+            #update amount repaid to coment amount repaid add date paid back as current time
+            transactions[id]["Amount Repaid"]+=float(comment_amount_repaid)
+            transactions[id]["Date Paid Back"]=datetime.datetime.now()
             newvalues = {
                 "$set": {
-                "Transactions":transactions,"Amount Repaid":existing_repaid_amount, "Date Paid Back": datetime.datetime.now()
+                "Transactions":transactions,
                 }
             }
             self.collection.update_one(myquery, newvalues)
-            message = f"Hi {str(comment.author)}, your loan of {comment_amount_received} from [{comment_lender_name}](/u/{comment_lender_name}) has been marked repaid successfully. To confirm [{borrower_name}](/u/{borrower_name}) must reply with the following:" \
+            message = f"Hi {str(comment.author)}, your loan of {comment_amount_repaid} from [{lender_name}](/u/{lender_name}) has noted successfully. To confirm [{borrower_name}](/u/{borrower_name}) must reply with the following:" \
             f"""
-            \n\n $paid {paid_with_id} {comment_amount_received}""" \
-            f"\n\n**Transaction ID:** {paid_with_id} **Date Repaid:** {datetime.datetime.now()}"
-        self.collection.update_one(myquery, newvalues)
+            \n\n $repaid_confirm {id} {comment_amount_repaid}""" \
+            f"\n\n**Transaction ID:** {id} **Date Repaid:** {datetime.datetime.now()}"
+            self.collection.update_one(myquery, newvalues)
+        else:
+            message = f"Transaction ID not found. Please check command again."
         comment.reply(message)
 
-        # post_url = post.url
-        # # break the comment into list of words
-        # comment_list = comment.body.split()
-        # transaction_id = comment_list[1]
-        # amount = int(comment_list[2])
-        # # get the loan details from database with 'Orignal Thread' equal to post_url
-        # myquery = {'Orignal Thread': post_url}
-        # doc = self.collection.find_one(myquery)
-        # # doc['Borrower']
-
-        # # check if the commenter is the borrower
-        # if author != doc['Borrower']:
-        #     message = f"Hi {author}, \nThis loan request was not made by you. It was made by [{doc['Borrower']}](/u/{doc['Borrower']}). Please check the post again."
-        #     comment.reply(message)
-        #     return
-        # # check if the loan is already repaid
-        # if doc['Repaid'] == True:
-        #     message = f"Hi {author}, \nThis loan has already been repaid by [{doc['Lender']}](/u/{doc['Lender']}). Please check the post again."
-        #     comment.reply(message)
-        #     return
-        # # check if the 'given' field is true
-        # if doc['Given'] == False:
-        #     message = f"Hi {author}, \nThis loan has not been lended yet. Please check the post again."
-        #     comment.reply(message)
-        #     return
-        # # check if amount is equal to amount requested
-        # if amount != doc['Amount Requested']:
-        #     message = f"Hi {author}, \nThe amount you are trying to repay is not equal to the amount requested. Requested amount is {doc['Amount Requested']}. Please check the post again."
-        #     comment.reply(message)
-        #     return
-        # # if all the above conditions are false, update the repaid to true, add transaction ID and Date Repaid to database
-        # newvalues = {"$set": {"Repaid": True, "Transaction ID": transaction_id,
-        #                       "Date Repaid": datetime.datetime.now()}}
-        # message = f"Hi {author}, your loan of {doc['Amount Requested']} from [{doc['Lender']}](/u/{doc['Lender']}) has been marked repaid successfully. To confirm [{doc['Lender']}](/u/{doc['Lender']}) must reply with the following:" \
-        #     f"""
-        #     \n\n !paid {doc['Amount Given']}""" \
-        #     f"\n\n**Transaction ID:** {transaction_id} **Date Repaid:** {datetime.datetime.now()}"
-        # self.collection.update_one(myquery, newvalues)
-        # comment.reply(message)
-
-    def paid(self, comment):
+    def repaid_confirm(self, comment):
         post = comment.submission
-        # comment_lender_name = str(post.author)
         post_url = post.url
         myquery = {'Orignal Thread': post_url}
         doc = self.collection.find_one(myquery)
-        # existing_amt_given = doc["Amount Given"]
-        # existing_repaid_amount = doc["Amount Repaid"]
-        # amount_requested = doc["Amount Requested"]
+        current_repaid_amount = doc["Amount Repaid"]
         transactions = doc["Transactions"]
-        paid_with_id = comment.body.split()[1]
-        # comment_amount_received = comment.body.split()[2]
-        # borrower_name = comment.submission.author
-        # comment_amount = int(comment.body.split()[1])
-        author = comment.author
-        if paid_with_id in transactions:
-            transactions[paid_with_id]["Completed?"] = True
+        comment_author = comment.author
+        comment_amount_repaid = comment.body.split()[2]
+        borrower_name = comment.submission.author
+        id = comment.body.split()[1]
+        if id in transactions:
+            #check if lender name is same as comment author
+            lender_name = transactions[id]["Lender"]
+
+            if lender_name != comment_author:
+                message = f"Hi {str(comment.author)}, you are not authorized to mark this loan as repaid. Only [{lender_name}](/u/{lender_name}) can do this."
+                comment.reply(message)
+                return
+            
+            #check if loan has been marked given then wait for borrower to confirm
+            if transactions[id]["Given?"] == False:
+                message = f"Hi {str(comment.author)}, You have not confirmed that [{lender_name}](/u/{lender_name}) has given you the loan. Please confirm this first."
+                comment.reply(message)
+                return
+
+            #check if comment_amount_repaid is same as amount given in transaction
+            if comment_amount_repaid != transactions[id]["Amount Given"]:
+                message = f"Hi {str(comment.author)}, the amount you have entered to confirm this loan as repaid is not the same as the amount given in the transaction. Please enter the correct amount."
+                comment.reply(message)
+                return
+            
+            #check if transaction is completed
+            if transactions[id]["Completed"] == True:
+                message = f"Hi {str(comment.author)}, this transaction is already completed."
+                comment.reply(message)
+                return
+            
+            #if transaction amount repaid is zero, i.e., author has not repaid the loan.
+            if transactions[id]["Amount Repaid"] == 0:
+                message = f"Hi {str(comment.author)}, [{borrower_name}](/u/{borrower_name}) has not repaid this loan. Please wait for [{borrower_name}](/u/{borrower_name}) to confirm this."
+                comment.reply(message)
+                return
+
+            #update completed to true and add amount repaid to current repaid amount
+            transactions[id]["Completed"] = True
+            current_repaid_amount+=float(comment_amount_repaid)
             newvalues = {
                 "$set": {
-                    "Transactions":transactions
+                "Transactions":transactions,
+                "Amount Repaid":current_repaid_amount
                 }
             }
+
             self.collection.update_one(myquery, newvalues)
-            message = f"Hi {author}, your loan of {doc['Amount Given']} to [{doc['Borrower']}](/u/{doc['Borrower']}) has been confirmed successfully. For any further queries, please contact the moderators."
-            comment.reply(message)
-
-        # post = comment.submission
-        # post_url = post.url
-        # myquery = {'Orignal Thread': post_url}
-        # doc = self.collection.find_one(myquery)
-
-        # if author != doc['Lender']:
-        #     message = f"Hi {author}, \nThis loan repayment was not done to you. It was done to the original lender - [{doc['Lender']}](/u/{doc['Lender']}). Please check the post again."
-        #     comment.reply(message)
-        #     return
-        # if doc['Repaid'] == False:
-        #     message = f"Hi {author}, \nThis loan has not been repaid by [{doc['Borrower']}](/u/{doc['Borrower']}). Please wait for the borrower to repay the loan."
-        #     comment.reply(message)
-        #     return
-        # if comment_amount != doc['Amount Given']:
-        #     message = f"Hi {author}, \nThe amount you are trying to confirm is not equal to the amount given. Given amount is {doc['Amount Given']}. Please check the amount again."
-        #     comment.reply(message)
-        #     return
-        # newvalues = {"$set": {"Amount Repaid": comment_amount}}
-        # message = f"Hi {author}, your loan of {doc['Amount Given']} to [{doc['Borrower']}](/u/{doc['Borrower']}) has been confirmed successfully. For any further queries, please contact the moderators."
-        # self.collection.update_one(myquery, newvalues)
-        # comment.reply(message)
-        # return
+            message = f"Hi {str(comment.author)}, the loan of {comment_amount_repaid} to [{borrower_name}](/u/{borrower_name}) has been confirmed successfully."
+            f"\n\n**Transaction ID:** {id} **Date Repaid:** {datetime.datetime.now()}"
+            self.collection.update_one(myquery, newvalues)
+        else:
+            message = f"Transaction ID not found. Please check command again."
+        comment.reply(message)
 
     def check(self, comment):
         user_id = comment.body.split()[1]

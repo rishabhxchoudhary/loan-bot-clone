@@ -121,22 +121,22 @@ class RedditBot:
     
         #searching transaction id with following lenders name
         #we can also check if he has repaid the earlier loan
-        for id in arr: 
-            #When person giving loan again we dont have acces of his previous  
-            if id["Lender"]==lender_name and id["Given?"] == False:   
+#         for id in arr: 
+#             #When person giving loan again we dont have acces of his previous  
+#             if id["Lender"]==lender_name and id["Given?"] == False:   
 
-                message = f" {lender_name}, you are not authorized to pay loan again unless your previous loan with id {id} has been confirmed by {borrower_name}"
-                comment.reply(message)
-                return
-            if id["Lender"]==lender_name and id["Completed?"] == False:   
+#                 message = f" {lender_name}, you are not authorized to pay loan again unless your previous loan with id {id} has been confirmed by {borrower_name}"
+#                 comment.reply(message)
+#                 return
+#             if id["Lender"]==lender_name and id["Completed?"] == False:   
 
-                message = f" {lender_name}, you are not authorized to pay loan again unless your previous loan with id {id} has been completed by {borrower_name}"
-                comment.reply(message)
-                return
+#                 message = f" {lender_name}, you are not authorized to pay loan again unless your previous loan with id {id} has been completed by {borrower_name}"
+#                 comment.reply(message)
+#                 return
             
-            elif id["Lender"]==lender_name and id["Given?"] == True:
-                message = f" {lender_name}, You have paid {id['Amount Given']} to {borrower_name} on {id['Date Given']} \n\n Now a new record will be created for you current payment"
-                comment.reply(message)
+#             elif id["Lender"]==lender_name and id["Given?"] == True:
+#                 message = f" {lender_name}, You have paid {id['Amount Given']} to {borrower_name} on {id['Date Given']} \n\n Now a new record will be created for you current payment"
+#                 comment.reply(message)
 
 
         if  loan_amount_max_asked-amount_give_till_now >= loan_amount_given and loan_amount_given>0:

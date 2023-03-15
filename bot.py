@@ -139,7 +139,7 @@ class RedditBot:
                 comment.reply(message)
 
 
-        if  loan_amount_max_asked-amount_give_till_now>=loan_amount_given:
+        if  loan_amount_max_asked-amount_give_till_now >= loan_amount_given and loan_amount_given>0:
             new_doc = {
                     "Lender": str(comment.author),
                     "Amount Given": loan_amount_given,

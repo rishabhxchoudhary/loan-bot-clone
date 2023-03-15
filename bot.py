@@ -203,7 +203,7 @@ class RedditBot:
                 return
             
             if comment_amount_received != lender_actual_amount_given:
-                message = f"{comment_author}, Cannot confirm the loan.\n\nThe Amount {comment_amount_received}$ you are confirming doesnt match what {lender_name } has paid"
+                message = f"{comment_author}, Cannot confirm the loan.\n\n The Amount {comment_amount_received}$ you are confirming doesnt match what {lender_name } has paid"
                 comment.reply(message)
                 return
             

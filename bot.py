@@ -19,21 +19,6 @@ def create_table_from_list(l):
         final_string += row
     return final_string
 
-# UTC - DD MM YYYY
-
-# Transactions 
-# {
-#     "Lender": "Name",
-#     "Amount Given": 2432,
-#     "Amount Repaid": 0,
-#     "Given?": False,
-#     "ID": 12345,
-#     "UNPAID?":"",
-#     "Date Given": None,
-#     "Date Paid Back" : None
-
-# }
-
 
 class RedditBot:
     def __init__(self, client_id, client_secret, username, password, user_agent, target_subreddit):
@@ -109,7 +94,6 @@ class RedditBot:
         myquery = {'Orignal Thread': post_url}
         doc = self.collection.find_one(myquery)
         arr = doc["Transactions"]
-        print(arr)
         loan_amount_given = float(comment.body.split()[1])
         amount_give_till_now = float(doc["Amount Given"])
         loan_amount_max_asked = float(
@@ -117,23 +101,20 @@ class RedditBot:
         lender_name = comment.author.name
         borrower_name = comment.submission.author
         paid_with_id = str(random.randint(10000,99999))
-        Given = (doc["Given?"])
+        # Given = (doc["Given?"])
     
-        #searching transaction id with following lenders name
+        # searching transaction id with following lenders name
         #we can also check if he has repaid the earlier loan
 #         for id in arr: 
-#             #When person giving loan again we dont have acces of his previous  
+# #             #When person giving loan again we dont have acces of his previous  
 #             if id["Lender"]==lender_name and id["Given?"] == False:   
-
 #                 message = f" {lender_name}, you are not authorized to pay loan again unless your previous loan with id {id} has been confirmed by {borrower_name}"
 #                 comment.reply(message)
 #                 return
 #             if id["Lender"]==lender_name and id["Completed?"] == False:   
-
 #                 message = f" {lender_name}, you are not authorized to pay loan again unless your previous loan with id {id} has been completed by {borrower_name}"
 #                 comment.reply(message)
 #                 return
-            
 #             elif id["Lender"]==lender_name and id["Given?"] == True:
 #                 message = f" {lender_name}, You have paid {id['Amount Given']} to {borrower_name} on {id['Date Given']} \n\n Now a new record will be created for you current payment"
 #                 comment.reply(message)
@@ -186,14 +167,11 @@ class RedditBot:
         amount_requested = doc["Amount Requested"]
         transactions = doc["Transactions"]
         paid_with_id = comment.body.split()[1]
-        comment_amount_received = comment.body.split()[2]
+        comment_amount_received = float(comment.body.split()[2])
         borrower_name = comment.submission.author
         comment_author = comment.author
-        
-        lender_name = doc["Transactions"]["Lender"]
-        lender_actual_amount_given = transactions[paid_with_id]['Amount Given']
-
-
+        lender_name = transactions[paid_with_id]["Lender"]
+        lender_actual_amount_given = float(transactions[paid_with_id]['Amount Given'])
         
         if  paid_with_id in  transactions:
 
@@ -203,7 +181,7 @@ class RedditBot:
                 return
             
             if comment_amount_received != lender_actual_amount_given:
-                message = f"{comment_author}, Cannot confirm the loan.\n\n The Amount {comment_amount_received}$ you are confirming doesnt match what {lender_name } has paid"
+                message = f"{comment_author}, Cannot confirm the loan.\n\n The Amount {comment_amount_received} $ you are confirming doesnt match what {lender_name } has paid"
                 comment.reply(message)
                 return
             
@@ -232,7 +210,7 @@ class RedditBot:
         doc = self.collection.find_one(myquery)
         transactions = doc["Transactions"]
         id = comment.body.split()[1]
-        comment_amount_repaid = comment.body.split()[2]
+        comment_amount_repaid = float(comment.body.split()[2])
         borrower_name = comment.submission.author
         comment_author = comment.author
         if id in transactions:
@@ -257,7 +235,7 @@ class RedditBot:
                 return
             
             #check if transaction is completed
-            if transactions[id]["Completed"] == True:
+            if transactions[id]["Completed?"] == True:
                 message = f"Hi {str(comment.author)}, this transaction is already completed."
                 comment.reply(message)
                 return
@@ -291,10 +269,10 @@ class RedditBot:
         post_url = post.url
         myquery = {'Orignal Thread': post_url}
         doc = self.collection.find_one(myquery)
-        current_repaid_amount = doc["Amount Repaid"]
+        current_repaid_amount = float(doc["Amount Repaid"])
         transactions = doc["Transactions"]
         comment_author = comment.author
-        comment_amount_repaid = comment.body.split()[2]
+        comment_amount_repaid = float(comment.body.split()[2])
         borrower_name = comment.submission.author
         id = comment.body.split()[1]
         if id in transactions:
@@ -319,7 +297,7 @@ class RedditBot:
                 return
             
             #check if transaction is completed
-            if transactions[id]["Completed"] == True:
+            if transactions[id]["Completed?"] == True:
                 message = f"Hi {str(comment.author)}, this transaction is already completed."
                 comment.reply(message)
                 return
@@ -331,7 +309,7 @@ class RedditBot:
                 return
 
             #update completed to true and add amount repaid to current repaid amount
-            transactions[id]["Completed"] = True
+            transactions[id]["Completed?"] = True
             current_repaid_amount+=float(comment_amount_repaid)
             newvalues = {
                 "$set": {
@@ -341,7 +319,7 @@ class RedditBot:
             }
 
             self.collection.update_one(myquery, newvalues)
-            message = f"Hi {str(comment.author)}, the loan of {comment_amount_repaid} to [{borrower_name}](/u/{borrower_name}) has been confirmed successfully."
+            message = f"Hi {str(comment.author)}, the loan of {comment_amount_repaid} to [{borrower_name}](/u/{borrower_name}) has been completed successfully."
             f"\n\n**Transaction ID:** {id} **Date Repaid:** {datetime.datetime.now()}"
             self.collection.update_one(myquery, newvalues)
         else:

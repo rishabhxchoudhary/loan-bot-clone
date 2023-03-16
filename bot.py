@@ -118,7 +118,13 @@ class RedditBot:
 #             elif id["Lender"]==lender_name and id["Given?"] == True:
 #                 message = f" {lender_name}, You have paid {id['Amount Given']} to {borrower_name} on {id['Date Given']} \n\n Now a new record will be created for you current payment"
 #                 comment.reply(message)
-
+        
+    
+        if  borrower_name == lender_name:
+            message = f"{borrower_name}, you dont have access to write this command."
+            comment.reply(message)
+            return
+            
 
         if  loan_amount_max_asked-amount_give_till_now >= loan_amount_given and loan_amount_given>0:
             new_doc = {
@@ -141,7 +147,7 @@ class RedditBot:
             message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
                 f"The format of the confirm command will be:\n"\
                 f"""
-            {highlighted_text_1}""" \
+                {highlighted_text_1}""" \
             f"\n\nIf you wish to mark this loan repaid later, you can use:\n"\
                 f"""
                 {highlighted_text_2}""" \

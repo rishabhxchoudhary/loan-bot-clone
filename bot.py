@@ -121,9 +121,9 @@ class RedditBot:
         
     
         if  borrower_name == lender_name:
-            message = f"{borrower_name}, you dont have access to write this command."
+            message = f"{borrower_name}-Borrower dont have access to write this command."
             comment.reply(message)
-            return
+            #return
             
 
         if  loan_amount_max_asked-amount_give_till_now >= loan_amount_given and loan_amount_given>0:
@@ -138,6 +138,8 @@ class RedditBot:
                     "Date Paid Back" : None,
                     "Completed?":False
                 }
+            
+            
             arr[paid_with_id] = new_doc
             newvalues = {"$set": {"Transactions": arr}}
             self.collection.update_one(myquery, newvalues)
@@ -145,12 +147,11 @@ class RedditBot:
             highlighted_text_1 = "$confirm {} {} USD".format(paid_with_id, loan_amount_given)
             highlighted_text_2 = "$repaid_with_id {} {} USD".format(paid_with_id, loan_amount_given)
             message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
-                f"The format of the confirm command will be:\n"\
-                f"""
-                {highlighted_text_1}""" \
-            f"\n\nIf you wish to mark this loan repaid later, you can use:\n"\
-                f"""
-                {highlighted_text_2}""" \
+            f"```The unique id for this transaction is - {paid_with_id}```\n\n"\
+                f"The format of the confirm command will be:\n\n"\
+                f"```{highlighted_text_1}```" \
+            f"\n\nIf you wish to mark this loan repaid later, you can use:\n\n"\
+                f"```{highlighted_text_2}```" \
             f"\n\n  "\
                 f"\n\nThis does NOT verify that [{lender_name}](/u/{lender_name}) actually lent anything to [{borrower_name}](/u/{borrower_name});\n\n " \
                 f"[{borrower_name}](/u/{borrower_name}) should confirm here or nearby that the money was sent" \

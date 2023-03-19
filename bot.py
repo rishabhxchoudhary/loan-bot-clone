@@ -118,7 +118,13 @@ class RedditBot:
 #             elif id["Lender"]==lender_name and id["Given?"] == True:
 #                 message = f" {lender_name}, You have paid {id['Amount Given']} to {borrower_name} on {id['Date Given']} \n\n Now a new record will be created for you current payment"
 #                 comment.reply(message)
-
+        
+    
+        if  borrower_name == lender_name:
+            message = f"{borrower_name}-Borrower dont have access to write this command."
+            comment.reply(message)
+            #return
+            
 
         if  loan_amount_max_asked-amount_give_till_now >= loan_amount_given and loan_amount_given>0:
             new_doc = {
@@ -132,6 +138,8 @@ class RedditBot:
                     "Date Paid Back" : None,
                     "Completed?":False
                 }
+            
+            
             arr[paid_with_id] = new_doc
             newvalues = {"$set": {"Transactions": arr}}
             self.collection.update_one(myquery, newvalues)
@@ -139,17 +147,16 @@ class RedditBot:
             highlighted_text_1 = "$confirm {} {} USD".format(paid_with_id, loan_amount_given)
             highlighted_text_2 = "$repaid_with_id {} {} USD".format(paid_with_id, loan_amount_given)
             message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
-                f"The format of the confirm command will be:\n"\
-                f"""
-            {highlighted_text_1}""" \
-            f"\n\nIf you wish to mark this loan repaid later, you can use:\n"\
-                f"""
-            {highlighted_text_2}""" \
+            f"```The unique id for this transaction is - {paid_with_id}```\n\n"\
+                f"The format of the confirm command will be:\n\n"\
+                f"```{highlighted_text_1}```" \
+            f"\n\nIf you wish to mark this loan repaid later, you can use:\n\n"\
+                f"```{highlighted_text_2}```" \
             f"\n\n  "\
                 f"\n\nThis does NOT verify that [{lender_name}](/u/{lender_name}) actually lent anything to [{borrower_name}](/u/{borrower_name});\n\n " \
                 f"[{borrower_name}](/u/{borrower_name}) should confirm here or nearby that the money was sent" \
                 f"\n\n**If the loan transaction did not work out and needs to be refunded then the lender should" \
-                f"reply to this comment with 'Refunded' and moderators will be automatically notified**"
+                f" reply to this comment with 'Refunded' and moderators will be automatically notified**"
             comment.reply(message)
         else:
             message = f"{comment.author} \n Maximum Amount you can Lend is {loan_amount_max_asked-amount_give_till_now} $"
@@ -168,6 +175,7 @@ class RedditBot:
         transactions = doc["Transactions"]
         paid_with_id = comment.body.split()[1]
         comment_amount_received = float(comment.body.split()[2])
+        
         borrower_name = comment.submission.author
         comment_author = comment.author
         lender_name = transactions[paid_with_id]["Lender"]
@@ -176,12 +184,12 @@ class RedditBot:
         if  paid_with_id in  transactions:
 
             if borrower_name != comment_author:
-                message = f"{comment_author}, you are not authorized to confirm this loan. Only [{borrower_name}](/u/{borrower_name}) can do this."
+                message = f"[{lender_name}](/u/{lender_name}, is not authorized to confirm this loan. Only [{borrower_name}](/u/{borrower_name}) can do this."
                 comment.reply(message)
                 return
             
             if comment_amount_received != lender_actual_amount_given:
-                message = f"{comment_author}, Cannot confirm the loan.\n\n The Amount {comment_amount_received} $ you are confirming doesnt match what {lender_name } has paid"
+                message = f"[{borrower_name}](/u/{borrower_name}), the loan cannot be confirmed.\n\n The Amount {comment_amount_received} $ you are confirming, doesnt match the amount what [{lender_name}](/u/{lender_name} has paid"
                 comment.reply(message)
                 return
             
@@ -189,7 +197,7 @@ class RedditBot:
             transactions[paid_with_id]["Given?"]=True
             existing_amt_given+=float(comment_amount_received)
 
-            message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{comment_lender_name}](/u/{comment_lender_name}) gave him/her {comment_amount_received} USD. (Reference amount: {amount_requested} USD). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
+            message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{lender_name}](/u/{lender_name}) gave him/her {comment_amount_received} USD. (Reference amount: {amount_requested} USD). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
                 f"___________________________________________________"\
                 f"\n\nThe purpose of responding to $confirm is to ensure the comment doesn't get edited.\n"
             comment.reply(message)
@@ -197,8 +205,8 @@ class RedditBot:
             newvalues = {  "$set": {"Transactions":transactions,"Amount Given":existing_amt_given}}
             self.collection.update_one(myquery, newvalues)
         else:
-            message = f"Cannot Confirm\n\n"\
-                f"that **{comment_lender_name}** has given them amount of **{comment_amount_received}** $ to **{borrower_name}**"
+            message = f"Cannot Confirm!\n\n"\
+                f"**[{lender_name}](/u/{lender_name}** has given them amount of **{comment_amount_received}** $ to **[{borrower_name}](/u/{borrower_name})**"
             comment.reply(message)
 
 

@@ -138,11 +138,9 @@ class RedditBot:
                     except Exception as e:
                         print(e)
             o += create_table_from_list(l)
-            o += f'''\n
-                Command to loan should be $loan {str(amt)}
-                \n
-            '''
+            o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
             post.reply(o)
+            
         else:
             post.mod.remove()
 
@@ -161,7 +159,7 @@ class RedditBot:
         paid_with_id = str(random.randint(10000, 99999))
 
         if borrower_name == lender_name:
-            message = f"{borrower_name}-Borrower dont have access to write this command."
+            message = f"[{borrower_name}](/u/{borrower_name})-Borrower dont have access to write this command."
             comment.reply(message)
         elif loan_amount_max_asked-amount_give_till_now >= loan_amount_given and loan_amount_given > 0:
             new_doc = {
@@ -197,7 +195,7 @@ class RedditBot:
                 f" reply to this comment with 'Refunded' and moderators will be automatically notified**"
             comment.reply(message)
         else:
-            message = f"{comment.author} \n Maximum Amount you can Lend is {loan_amount_max_asked-amount_give_till_now} $"
+            message = f"[{comment.author}](/u/{comment.author}) \n Maximum Amount you can Lend is {loan_amount_max_asked-amount_give_till_now} $"
             comment.reply(message)
 
     def confirm(self, comment):
@@ -220,7 +218,7 @@ class RedditBot:
         if paid_with_id in transactions:
 
             if borrower_name != comment_author:
-                message = f"[{lender_name}](/u/{lender_name}, is not authorized to confirm this loan. Only [{borrower_name}](/u/{borrower_name}) can do this."
+                message = f"[{lender_name}](/u/{lender_name}), is not authorized to confirm this loan. Only [{borrower_name}](/u/{borrower_name}) can do this."
                 comment.reply(message)
                 return
 
@@ -300,7 +298,7 @@ class RedditBot:
             self.collection.update_one(myquery, newvalues)
             message = f"Hi {str(comment.author)}, your loan of {comment_amount_repaid} from [{lender_name}](/u/{lender_name}) has noted successfully. To confirm [{borrower_name}](/u/{borrower_name}) must reply with the following:" \
                 f"""
-            \n\n $repaid_confirm {id} {comment_amount_repaid}""" \
+            \n\n```$repaid_confirm {id} {comment_amount_repaid}```""" \
             f"\n\n**Transaction ID:** {id} **Date Repaid:** {datetime.datetime.now()}"
             self.collection.update_one(myquery, newvalues)
         else:
@@ -458,9 +456,19 @@ class RedditBot:
 
     def help_command(self, comment):
         message = 'Here are the available commands: '
-        for command in self.commands.keys():
-            message += f'${command}, '
-        message = message[:-2]
+        message += ' \n\n'
+        message += ' ```$check <user_id>``` - Check the status of a user. '
+        message += ' \n\n'
+        message += ' ```$help``` - Get help with the commands. '
+        message += ' \n\n'
+        message += ' ```$loan <amount>``` - Offer a loan to the author of the post. '
+        message += ' \n\n'
+        message += ' ```$confirm <transaction_id> <amoount>``` - Confirm a loan with the given transaction id. '
+        message += ' \n\n'
+        message += ' ```$repaid_with_id <transaction_id> <amount>``` - Inform that the loan has been repaid with the given transaction id. '
+        message += ' \n\n'
+        message += ' ```$repaid_confirm <transaction_id> <amount>``` - Confirm that the loan has been repaid with the given transaction id. '
+        message += ' \n\n'
         comment.reply(message)
 
     def handle_new_comment(self, comment):

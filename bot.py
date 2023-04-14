@@ -301,7 +301,7 @@ class RedditBot:
             loan_amount_given = float(match.group(1))
             amount_give_till_now = float(doc["Amount Given"])
             loan_amount_max_asked = float(
-                re.search(r"\[REQ\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?", comment.submission.title).group(1))
+                re.match(r"\[REQ\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?", comment.submission.title).group(1))
             lender_name = comment.author.name
             borrower_name = comment.submission.author
             paid_with_id = str(random.randint(10000, 99999))
@@ -343,7 +343,10 @@ class RedditBot:
                     f" reply to this comment with 'Refunded' and moderators will be automatically notified**"
                 comment.reply(message)
             else:
-                message = f"[{comment.author}](/u/{comment.author}) \n Maximum Amount you can Lend is {loan_amount_max_asked-amount_give_till_now} $"
+                if loan_amount_max_asked-amount_give_till_now == 0:
+                    message = f"[{comment.author}](/u/{comment.author}) \n This loan request has been fulfilled."
+                else:
+                    message = f"[{comment.author}](/u/{comment.author}) \n Maximum Amount you can Lend is {loan_amount_max_asked-amount_give_till_now} $"
                 comment.reply(message)
         else:
             message = f"Invalid Command Format. The correct format is ```$loan <amount>```"

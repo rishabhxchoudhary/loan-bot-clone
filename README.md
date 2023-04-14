@@ -8,7 +8,6 @@ LoanBot: A service for subreddits to record and manage loan requests, with simpl
   - [Introduction](#introduction)
   - [Usage](#usage)
   - [Contributing](#contributing)
-  - [License](#license)
 
 ## Introduction
 
@@ -42,15 +41,3 @@ Special thanks to the following individuals for their contributions to this proj
 3. [Paras Roy](https://github.com/Paras-Roy)
 
 Your support and contributions are greatly appreciated! :star2:
-
-## License
-
-[This includes information about the license under which the project is released, along with any relevant terms and conditions]
-
-## Additional Documentation
-
-[This provides links or references to any additional documentation or resources related to the project]
-
-## Contact Information
-
-[This includes the contact information, such as an email address or a link to personal website, to encourage communication and collaboration]

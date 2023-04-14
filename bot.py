@@ -608,7 +608,7 @@ class RedditBot:
             for doc in lender_doc:
                 for transaction in doc["Transactions"]:
                     try:
-                        if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                        if doc["Transactions"][transaction]["Lender"] == str(user_id):
                             row = []
                             row.append(doc["Borrower"])
                             row.append(doc["Transactions"]

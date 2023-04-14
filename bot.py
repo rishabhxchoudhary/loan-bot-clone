@@ -57,6 +57,10 @@ class RedditBot:
             doc = self.collection.find_one(myquery)
             arr = doc["Transactions"]
             transaction = arr[paid_with_id]
+            if comment.author != transaction["Lender"]:
+                comment.reply(
+                    "You cannot mark someone else's transaction as unpaid")
+                return
             if transaction["Completed?"] == True:
                 comment.reply("This transaction has already been completed")
                 return

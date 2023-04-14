@@ -1,5 +1,6 @@
 import praw
 import pymongo
+import certifi
 import credentials
 import threading
 import re
@@ -31,7 +32,7 @@ class RedditBot:
             user_agent=user_agent
         )
         self.subreddit = self.reddit.subreddit(target_subreddit)
-        self.collection = pymongo.MongoClient(credentials.mongo_uri)[
+        self.collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where()) [
             credentials.mongo_dbname][credentials.mongo_collection]
         self.post_stream = self.subreddit.stream.submissions()
         self.comment_stream = self.subreddit.stream.comments()
@@ -56,6 +57,10 @@ class RedditBot:
             doc = self.collection.find_one(myquery)
             arr = doc["Transactions"]
             transaction = arr[paid_with_id]
+            if comment.author != transaction["Lender"]:
+                comment.reply(
+                    "You cannot mark someone else's transaction as unpaid")
+                return
             if transaction["Completed?"] == True:
                 comment.reply("This transaction has already been completed")
                 return

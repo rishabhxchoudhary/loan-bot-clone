@@ -32,7 +32,7 @@ class RedditBot:
             user_agent=user_agent
         )
         self.subreddit = self.reddit.subreddit(target_subreddit)
-        self.collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where()) [
+        self.collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where())[
             credentials.mongo_dbname][credentials.mongo_collection]
         self.post_stream = self.subreddit.stream.submissions()
         self.comment_stream = self.subreddit.stream.comments()
@@ -326,11 +326,11 @@ class RedditBot:
                 newvalues = {"$set": {"Transactions": arr}}
                 self.collection.update_one(myquery, newvalues)
 
-                highlighted_text_1 = "$confirm {} {} USD".format(
+                highlighted_text_1 = "$confirm {} {}".format(
                     paid_with_id, loan_amount_given)
-                highlighted_text_2 = "$repaid_with_id {} {} USD".format(
+                highlighted_text_2 = "$repaid_with_id {} {}".format(
                     paid_with_id, loan_amount_given)
-                message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
+                message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} to [{borrower_name}](/u/{borrower_name})\n\n" \
                     f"```The unique id for this transaction is - {paid_with_id}```\n\n"\
                     f"The format of the confirm command will be:\n\n"\
                     f"```{highlighted_text_1}```" \
@@ -383,7 +383,7 @@ class RedditBot:
                 transactions[paid_with_id]["Given?"] = True
                 existing_amt_given += float(comment_amount_received)
 
-                message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{lender_name}](/u/{lender_name}) gave him/her {comment_amount_received} USD. (Reference amount: {amount_requested} USD). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
+                message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{lender_name}](/u/{lender_name}) gave him/her {comment_amount_received}. (Reference amount: {amount_requested}). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
                     f"___________________________________________________"\
                     f"\n\nThe purpose of responding to $confirm is to ensure the comment doesn't get edited.\n"
                 comment.reply(message)

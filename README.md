@@ -33,7 +33,15 @@ LoanBot is a service designed to assist subreddits in recording and managing loa
 
 ## Contributing
 
-[Explain how others can contribute to your project, including guidelines for submitting issues or pull requests]
+## Contributors
+
+Special thanks to the following individuals for their contributions to this project:
+
+1. [Rishabh Choudhary](https://github.com/rishabhxchoudhary)
+2. [Ansh Tanwar](https://github.com/AnshTanwar)
+3. [Paras Roy](https://github.com/Paras-Roy)
+
+Your support and contributions are greatly appreciated! :star2:
 
 ## License
 

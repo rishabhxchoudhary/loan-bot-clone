@@ -290,7 +290,7 @@ class RedditBot:
             post.mod.remove()
 
     def loan(self, comment):
-        regex = r"\$loan\s\d+(\.\d+)?"
+        regex = r"\$loan\s+(\d+(?:\.\d+)?)"
         match = re.match(regex, str(comment.body))
         if match:
             post = comment.submission
@@ -350,7 +350,7 @@ class RedditBot:
             comment.reply(message)
 
     def confirm(self, comment):
-        regex = r"\$confirm\s\d{5}\s\d+(\.\d+)?(\s.+)?"
+        regex = r"\$confirm\s+(\d{5})\s+(\d+(?:\.\d+)?)"
         match = re.match(regex, comment.body)
         if match:
             post = comment.submission
@@ -401,7 +401,7 @@ class RedditBot:
     #  Traverse till found id, add to amount REPAID.
 
     def repaid_with_id(self, comment):
-        regex = r"\$repaid_with_id\s\d{5}\s\d+(\.\d+)?"
+        regex = r"\$repaid\\_with\\_id\s+(\d{5})\s+(\d+(?:\.\d+)?)"
         match = re.match(regex, comment.body)
         if match:
             post = comment.submission
@@ -456,7 +456,7 @@ class RedditBot:
                     }
                 }
                 self.collection.update_one(myquery, newvalues)
-                message = f"Hi {str(comment.author)}, your loan of {comment_amount_repaid} from [{lender_name}](/u/{lender_name}) has noted successfully. To confirm [{borrower_name}](/u/{borrower_name}) must reply with the following:" \
+                message = f"Hi {str(comment.author)}, your loan of {comment_amount_repaid} from [{lender_name}](/u/{lender_name}) has noted successfully. To confirm [{lender_name}](/u/{lender_name}) must reply with the following:" \
                     f"""
                 \n\n```$repaid_confirm {id} {comment_amount_repaid}```""" \
                 f"\n\n**Transaction ID:** {id} **Date Repaid:** {datetime.datetime.now()}"
@@ -469,7 +469,7 @@ class RedditBot:
             comment.reply(message)
 
     def repaid_confirm(self, comment):
-        regex = r"\$repaid_confirm\s\d{5}\s\d+(\.\d+)?"
+        regex = r"\$repaid\\_confirm\s+(\d{5})\s+(\d+(?:\.\d+)?)"
         match = re.match(regex, comment.body)
         if match:
             post = comment.submission

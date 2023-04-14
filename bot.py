@@ -55,6 +55,17 @@ class RedditBot:
             myquery = {'Orignal Thread': post_url}
             doc = self.collection.find_one(myquery)
             arr = doc["Transactions"]
+            transaction = arr[paid_with_id]
+            if transaction["Completed?"] == True:
+                comment.reply("This transaction has already been completed")
+                return
+            if transaction["Lender"] == str(post.author):
+                comment.reply("You cannot mark your own transaction as unpaid")
+                return
+            if transaction["UNPAID?"] == "**UNPAID**":
+                comment.reply(
+                    "This transaction has already been marked as unpaid")
+                return
             arr[paid_with_id]["UNPAID?"] = "**UNPAID**"
             newvalues = {"$set": {"Transactions": arr}}
             self.collection.update_one(myquery, newvalues)

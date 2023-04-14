@@ -32,7 +32,7 @@ class RedditBot:
             user_agent=user_agent
         )
         self.subreddit = self.reddit.subreddit(target_subreddit)
-        self.collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where()) [
+        self.collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where())[
             credentials.mongo_dbname][credentials.mongo_collection]
         self.post_stream = self.subreddit.stream.submissions()
         self.comment_stream = self.subreddit.stream.comments()
@@ -290,7 +290,7 @@ class RedditBot:
             post.mod.remove()
 
     def loan(self, comment):
-        regex = r"\$loan\s\d+(\.\d+)?"
+        regex = r"\$loan\s+(\d+(?:\.\d+)?)"
         match = re.match(regex, str(comment.body))
         if match:
             post = comment.submission
@@ -301,7 +301,7 @@ class RedditBot:
             loan_amount_given = float(match.group(1))
             amount_give_till_now = float(doc["Amount Given"])
             loan_amount_max_asked = float(
-                match.group(1))
+                re.search(r"\[REQ\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?", comment.submission.title).group(1))
             lender_name = comment.author.name
             borrower_name = comment.submission.author
             paid_with_id = str(random.randint(10000, 99999))
@@ -326,11 +326,11 @@ class RedditBot:
                 newvalues = {"$set": {"Transactions": arr}}
                 self.collection.update_one(myquery, newvalues)
 
-                highlighted_text_1 = "$confirm {} {} USD".format(
+                highlighted_text_1 = "$confirm {} {}".format(
                     paid_with_id, loan_amount_given)
-                highlighted_text_2 = "$repaid_with_id {} {} USD".format(
+                highlighted_text_2 = "$repaid_with_id {} {}".format(
                     paid_with_id, loan_amount_given)
-                message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} USD to [{borrower_name}](/u/{borrower_name})\n\n" \
+                message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} to [{borrower_name}](/u/{borrower_name})\n\n" \
                     f"```The unique id for this transaction is - {paid_with_id}```\n\n"\
                     f"The format of the confirm command will be:\n\n"\
                     f"```{highlighted_text_1}```" \
@@ -350,7 +350,7 @@ class RedditBot:
             comment.reply(message)
 
     def confirm(self, comment):
-        regex = r"\$confirm\s\d{5}\s\d+(\.\d+)?(\s.+)?"
+        regex = r"\$confirm\s+(\d{5})\s+(\d+(?:\.\d+)?)"
         match = re.match(regex, comment.body)
         if match:
             post = comment.submission
@@ -383,7 +383,7 @@ class RedditBot:
                 transactions[paid_with_id]["Given?"] = True
                 existing_amt_given += float(comment_amount_received)
 
-                message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{lender_name}](/u/{lender_name}) gave him/her {comment_amount_received} USD. (Reference amount: {amount_requested} USD). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
+                message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{lender_name}](/u/{lender_name}) gave him/her {comment_amount_received}. (Reference amount: {amount_requested}). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
                     f"___________________________________________________"\
                     f"\n\nThe purpose of responding to $confirm is to ensure the comment doesn't get edited.\n"
                 comment.reply(message)
@@ -401,7 +401,7 @@ class RedditBot:
     #  Traverse till found id, add to amount REPAID.
 
     def repaid_with_id(self, comment):
-        regex = r"\$repaid_with_id\s\d{5}\s\d+(\.\d+)?"
+        regex = r"\$repaid\\_with\\_id\s+(\d{5})\s+(\d+(?:\.\d+)?)"
         match = re.match(regex, comment.body)
         if match:
             post = comment.submission
@@ -456,7 +456,7 @@ class RedditBot:
                     }
                 }
                 self.collection.update_one(myquery, newvalues)
-                message = f"Hi {str(comment.author)}, your loan of {comment_amount_repaid} from [{lender_name}](/u/{lender_name}) has noted successfully. To confirm [{borrower_name}](/u/{borrower_name}) must reply with the following:" \
+                message = f"Hi {str(comment.author)}, your loan of {comment_amount_repaid} from [{lender_name}](/u/{lender_name}) has noted successfully. To confirm [{lender_name}](/u/{lender_name}) must reply with the following:" \
                     f"""
                 \n\n```$repaid_confirm {id} {comment_amount_repaid}```""" \
                 f"\n\n**Transaction ID:** {id} **Date Repaid:** {datetime.datetime.now()}"
@@ -469,7 +469,7 @@ class RedditBot:
             comment.reply(message)
 
     def repaid_confirm(self, comment):
-        regex = r"\$repaid_confirm\s\d{5}\s\d+(\.\d+)?"
+        regex = r"\$repaid\\_confirm\s+(\d{5})\s+(\d+(?:\.\d+)?)"
         match = re.match(regex, comment.body)
         if match:
             post = comment.submission

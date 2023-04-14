@@ -301,7 +301,7 @@ class RedditBot:
             loan_amount_given = float(match.group(1))
             amount_give_till_now = float(doc["Amount Given"])
             loan_amount_max_asked = float(
-                match.group(1))
+                re.search(r"\[REQ\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?", comment.submission.title).group(1))
             lender_name = comment.author.name
             borrower_name = comment.submission.author
             paid_with_id = str(random.randint(10000, 99999))

@@ -197,6 +197,13 @@ class RedditBot:
         else:
             self.handle_wrong_post(post)
 
+    def handle_wrong_post(self, post):
+        try:
+            post.reply("Please use the correct format")
+            post.mod.remove()
+        except:
+            print("Error")
+
     def handle_paid_post(self, post):
         try:
             regex = r"\[PAID\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?"
@@ -205,7 +212,8 @@ class RedditBot:
 
     def handle_req_post(self, post):
         try:
-            regex = r"^\[REQ\] \(\d+\.\d{2}\) - \([\w\s]+,\s[\w\s]+,\s[\w\s]+\), \(\d{4}-\d{2}-\d{2}\), \([\w\s]+\)$"
+            regex = r"^\[REQ\] \((\d+\.\d+)\) - \(.*\), \(.*\), \(.*\)$"
+            # regex = r"^\[REQ\] \((\d+\.\d+)\) - \(.*\), \(.*\), \(.*\)$"
             match = re.match(regex, str(post.title))
             if match:
                 doc = {
@@ -233,6 +241,7 @@ class RedditBot:
                     for transaction in i["Transactions"]:
                         try:
                             row = []
+                            print(i["Transactions"][transaction])
                             row.append(str(post.author))
                             row.append(i["Transactions"]
                                        [transaction]["Lender"])
@@ -334,12 +343,12 @@ class RedditBot:
                     o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
                 else:
-                    o += f"u\{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower\n"
-                    o += f"u\{str(post.author)} has {count_lender_completed} Loans Completed as Lender\n"
-                    o += f"u\{str(post.author)} has {count_borrower_unpaid} Loans Unpaid as Borrower\n"
-                    o += f"u\{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender\n"
-                    o += f"u\{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower\n"
-                    o += f"u\{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender\n\n"
+                    o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower\n\n"
+                    o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender\n\n"
+                    o += f"u/{str(post.author)} has {count_borrower_unpaid} Loans Unpaid as Borrower\n\n"
+                    o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender\n\n"
+                    o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower\n\n"
+                    o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender\n\n"
                     o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
             else:

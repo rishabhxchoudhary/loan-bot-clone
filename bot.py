@@ -183,9 +183,29 @@ class RedditBot:
             print(e)
 
     def handle_new_post(self, post):
+        print(f'New post: {post.title}')
+        if str(post.title).startswith("[REQ]"):
+            self.handle_req_post(post)
+        elif str(post.title).startswith("[PAID]"):
+            self.handle_paid_post(post)
+        elif str(post.title).startswith("[UNPAID]"):
+            self.handle_unpaid_post(post)
+        elif str(post.title).startswith("[OFFER]"):
+            self.handle_completed_post(post)
+        elif str(post.title).startswith("[PRE]"):
+            self.handle_pre_post(post)
+        else:
+            self.handle_wrong_post(post)
+
+    def handle_paid_post(self, post):
         try:
-            print(f'New post: {post.title}')
-            regex = r"\[REQ\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?"
+            regex = r"\[PAID\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?"
+        except:
+            print("Error")
+
+    def handle_req_post(self, post):
+        try:
+            regex = r"^\[REQ\] \(\d+\.\d{2}\) - \([\w\s]+,\s[\w\s]+,\s[\w\s]+\), \(\d{4}-\d{2}-\d{2}\), \([\w\s]+\)$"
             match = re.match(regex, str(post.title))
             if match:
                 doc = {
@@ -201,6 +221,12 @@ class RedditBot:
                 o = f'Here is information on {str(post.author)}\n\n'
                 l = [["Borrower", "Lender", "Amount Given", "Given",
                       "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                count_borrower_completed = 0
+                count_borrower_unpaid = 0
+                count_borrowed_ongoing = 0
+                count_lender_completed = 0
+                count_lender_unpaid = 0
+                count_lender_ongoing = 0
                 myquery = {'Borrower': str(post.author)}
                 requester_doc = self.collection.find(myquery)
                 for i in requester_doc:
@@ -225,6 +251,12 @@ class RedditBot:
                                        [transaction]["Date Given"])
                             row.append(i["Transactions"][transaction]
                                        ["Date Paid Back"])
+                            if i["Transactions"][transaction]["Completed?"] == True:
+                                count_borrower_completed += 1
+                            elif i["Transactions"][transaction]["UNPAID?"] == True:
+                                count_borrower_unpaid += 1
+                            else:
+                                count_borrowed_ongoing += 1
                             l.append(row)
                         except Exception as e:
                             print(e)
@@ -288,14 +320,33 @@ class RedditBot:
                                            [transaction]["Date Given"])
                                 row.append(doc["Transactions"]
                                            [transaction]["Date Paid Back"])
+                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                    count_lender_completed += 1
+                                elif doc["Transactions"][transaction]["UNPAID?"] == True:
+                                    count_lender_unpaid += 1
+                                else:
+                                    count_lender_ongoing += 1
                                 l.append(row)
                         except Exception as e:
                             print(e)
-                o += create_table_from_list(l)
-                o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
-                post.reply(o)
-
+                if len(l) < 7:
+                    o += create_table_from_list(l)
+                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
+                    post.reply(o)
+                else:
+                    o += f"u\{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower\n"
+                    o += f"u\{str(post.author)} has {count_lender_completed} Loans Completed as Lender\n"
+                    o += f"u\{str(post.author)} has {count_borrower_unpaid} Loans Unpaid as Borrower\n"
+                    o += f"u\{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender\n"
+                    o += f"u\{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower\n"
+                    o += f"u\{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender\n\n"
+                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
+                    post.reply(o)
             else:
+                o = "Please follow the format\n\n"
+                o += "[REQ] (Amount) - (#City, State, Country), (Repayment Date), (Payment Method)\n\n"
+                o += "Example: [REQ] (100.00) - (New York City, New York, United States), (2023-05-01), (PayPal)\n\n"
+                post.reply(o)
                 post.mod.remove()
         except Exception as e:
             print(e)
@@ -317,7 +368,8 @@ class RedditBot:
                 lender_name = comment.author.name
                 borrower_name = comment.submission.author
                 paid_with_id = str(random.randint(10000, 99999))
-
+                while paid_with_id in arr:
+                    paid_with_id = str(random.randint(10000, 99999))
                 if borrower_name == lender_name:
                     message = f"[{borrower_name}](/u/{borrower_name})-Borrower dont have access to write this command."
                     comment.reply(message)

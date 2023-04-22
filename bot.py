@@ -54,8 +54,13 @@ class RedditBot:
             match = re.match(regex, comment.body)
             if match:
                 paid_with_id = match.group(1)
-                post = comment.submission
-                post_url = post.url
+                doc1 = self.post_collection.find_one({"ID": paid_with_id})
+                if not doc1:
+                    message = f"Invalid ID. Please check the ID and try again."
+                    comment.reply(message)
+                    return
+                post_url = doc1["Orignal Thread"]
+                post = self.reddit.submission(url=post_url)
                 myquery = {'Orignal Thread': post_url}
                 doc = self.collection.find_one(myquery)
                 arr = doc["Transactions"]
@@ -532,14 +537,19 @@ class RedditBot:
             regex = r"\$repaid\\_with\\_id\s+(\d{5})\s+(\d+(?:\.\d+)?)"
             match = re.match(regex, comment.body)
             if match:
-                post = comment.submission
-                post_url = post.url
+                id = match.group(1)
+                doc1 = self.post_collection.find_one({"ID": id})
+                if not doc1:
+                    message = f"Invalid ID. Please check the ID and try again."
+                    comment.reply(message)
+                    return
+                post_url = doc1["Orignal Thread"]
+                post = self.reddit.submission(url=post_url)
                 myquery = {'Orignal Thread': post_url}
                 doc = self.collection.find_one(myquery)
                 transactions = doc["Transactions"]
-                id = match.group(1)
                 comment_amount_repaid = float(match.group(2))
-                borrower_name = comment.submission.author
+                borrower_name = post.author
                 comment_author = comment.author
                 if id in transactions:
                     # check if borrower name is same as comment author
@@ -603,8 +613,13 @@ class RedditBot:
             regex = r"\$repaid\\_confirm\s+(\d{5})\s+(\d+(?:\.\d+)?)"
             match = re.match(regex, comment.body)
             if match:
-                post = comment.submission
-                post_url = post.url
+                id = match.group(1)
+                doc1 = self.post_collection.find_one({"ID": id})
+                if not doc1:
+                    message = f"Invalid ID. Please check the ID and try again."
+                    comment.reply(message)
+                    return
+                post_url = doc1["Orignal Thread"]
                 myquery = {'Orignal Thread': post_url}
                 doc = self.collection.find_one(myquery)
                 current_repaid_amount = float(doc["Amount Repaid"])

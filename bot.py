@@ -205,13 +205,13 @@ class RedditBot:
     def handle_wrong_post(self, post):
         try:
             o = "Please use the correct Post format\n\n"
-            o+="You can use one of the following post formats :\n\n"
+            o += "You can use one of the following post formats :\n\n"
             o += "[REQ] (Amount) - (#City, State, Country), (Repayment Date), (Payment Method)\n\n"
             o += "Example: [REQ] (100.00) - (New York City, New York, United States), (2023-05-01), (PayPal)\n\n\n\n"
             o += "[PAID] (username) - (amount) (other information)\n\n"
             o += "Example: [PAID] (u\username) - (100.0) (On Time)\n\n\n\n"
             o += "[UNPAID] (username) - (amount) (information)\n\n"
-            o += "Example: [UNPAID] (u/username) - (100.0) (Overdue)\n\n\n\n"            
+            o += "Example: [UNPAID] (u/username) - (100.0) (Overdue)\n\n\n\n"
             o += "[OFFER] - (your offer)\n\n"
             o += "Example: [OFFER] - (I have some money, I'd like to offer someone)\n\n\n\n"
             post.reply("Please use the correct format")
@@ -356,7 +356,6 @@ class RedditBot:
                             print(e)
                 if len(l) < 7:
                     o += create_table_from_list(l)
-                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
                 else:
                     if count_borrower_completed == 0:
@@ -383,7 +382,6 @@ class RedditBot:
                         o += f"u/{str(post.author)} has no loans ongoing as Lender\n\n"
                     else:
                         o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender for a total of ${amount_lender_ongoing}\n\n"
-                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
             else:
                 o = "Please follow the format\n\n"
@@ -531,7 +529,6 @@ class RedditBot:
                             print(e)
                 if len(l) < 7:
                     o += create_table_from_list(l)
-                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
                 else:
                     if count_borrower_completed == 0:
@@ -558,7 +555,6 @@ class RedditBot:
                         o += f"u/{str(post.author)} has no loans ongoing as Lender\n\n"
                     else:
                         o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender for a total of ${amount_lender_ongoing}\n\n"
-                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
             else:
                 o = "Please follow the format\n\n"
@@ -706,7 +702,6 @@ class RedditBot:
                             print(e)
                 if len(l) < 7:
                     o += create_table_from_list(l)
-                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
                 else:
                     if count_borrower_completed == 0:
@@ -733,7 +728,6 @@ class RedditBot:
                         o += f"u/{str(post.author)} has no loans ongoing as Lender\n\n"
                     else:
                         o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender for a total of ${amount_lender_ongoing}\n\n"
-                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
             else:
                 o = "Please follow the format\n\n"

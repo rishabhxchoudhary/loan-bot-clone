@@ -929,6 +929,10 @@ class RedditBot:
             match = re.match(regex, str(comment.body).strip())
             if match:
                 post = comment.submission
+                if not (str(post.title).strip().startswith("[REQ]")):
+                    comment.reply(
+                        "Please only use this command in a Request Post.")
+                    return
                 post_url = post.url
                 myquery = {'Orignal Thread': post_url}
                 doc = self.collection.find_one(myquery)

@@ -198,24 +198,551 @@ class RedditBot:
         elif str(post.title).startswith("[UNPAID]"):
             self.handle_unpaid_post(post)
         elif str(post.title).startswith("[OFFER]"):
-            self.handle_completed_post(post)
-        elif str(post.title).startswith("[PRE]"):
-            self.handle_pre_post(post)
+            self.handle_offer_post(post)
         else:
             self.handle_wrong_post(post)
 
     def handle_wrong_post(self, post):
         try:
+            o = "Please use the correct Post format\n\n"
+            o+="You can use one of the following post formats :\n\n"
+            o += "[REQ] (Amount) - (#City, State, Country), (Repayment Date), (Payment Method)\n\n"
+            o += "Example: [REQ] (100.00) - (New York City, New York, United States), (2023-05-01), (PayPal)\n\n\n\n"
+            o += "[PAID] (username) - (amount) (other information)\n\n"
+            o += "Example: [PAID] (u\username) - (100.0) (On Time)\n\n\n\n"
+            o += "[UNPAID] (username) - (amount) (information)\n\n"
+            o += "Example: [UNPAID] (u/username) - (100.0) (Overdue)\n\n\n\n"            
+            o += "[OFFER] - (your offer)\n\n"
+            o += "Example: [OFFER] - (I have some money, I'd like to offer someone)\n\n\n\n"
             post.reply("Please use the correct format")
             post.mod.remove()
         except:
             print("Error")
 
+    def handle_offer_post(self, post):
+        try:
+            regex = r"^\[OFFER\] - \((.*?)\)$"
+            match = re.match(regex, str(post.title))
+            if match:
+                o = f'Here is information on {str(post.author)}\n\n'
+                l = [["Borrower", "Lender", "Amount Given", "Given",
+                      "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                count_borrower_completed = 0
+                count_borrower_completed_amount = 0.0
+                count_borrower_unpaid = 0
+                amount_borrower_unpaid = 0.0
+                count_borrowed_ongoing = 0
+                amount_borrower_ongoing = 0.0
+                count_lender_completed = 0
+                amount_lender_completed = 0.0
+                count_lender_unpaid = 0
+                amount_lender_unpaid = 0.0
+                count_lender_ongoing = 0
+                amount_lender_ongoing = 0.0
+                myquery = {'Borrower': str(post.author)}
+                requester_doc = self.collection.find(myquery)
+                for i in requester_doc:
+                    for transaction in i["Transactions"]:
+                        try:
+                            row = []
+                            print(i["Transactions"][transaction])
+                            row.append(str(post.author))
+                            row.append(i["Transactions"]
+                                       [transaction]["Lender"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Amount Given"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]
+                                       ["Amount Repaid"])
+                            if i["Transactions"][transaction]["Completed?"] == True:
+                                row.append(True)
+                            else:
+                                row.append(False)
+                            row.append(i["Orignal Thread"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]
+                                       ["Date Paid Back"])
+                            if i["Transactions"][transaction]["Completed?"] == True:
+                                count_borrower_completed += 1
+                                count_borrower_completed_amount += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            elif i["Transactions"][transaction]["UNPAID?"] == True:
+                                count_borrower_unpaid += 1
+                                amount_borrower_unpaid += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            else:
+                                count_borrowed_ongoing += 1
+                                amount_borrower_ongoing += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            l.append(row)
+                        except Exception as e:
+                            print(e)
+                pipeline = [
+                    {
+                        "$match":   {"$expr": {
+                            "$gt": [
+                                {
+                                    "$size": {
+                                        "$filter": {
+                                            "input": {"$objectToArray": "$Transactions"},
+                                            "as": "item",
+                                            "cond": {
+                                                "$eq": [
+                                                    f"{str(post.author)}",
+                                                    {
+                                                        "$reduce": {
+                                                            "input": {"$objectToArray": "$$item.v"},
+                                                            "initialValue": "",
+                                                            "in": {
+                                                                "$cond": {
+                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
+                                                                    "then": "$$this.v",
+                                                                    "else": "$$value"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                },
+                                0
+                            ]
+                        }
+                        }
+                    }
+                ]
+                lender_doc = self.collection.aggregate(pipeline)
+                for doc in lender_doc:
+                    for transaction in doc["Transactions"]:
+                        try:
+                            if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                                row = []
+                                row.append(doc["Borrower"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Lender"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Amount Given"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Given?"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Amount Repaid"])
+                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                    row.append(True)
+                                else:
+                                    row.append(False)
+                                row.append(doc["Orignal Thread"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Date Given"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Date Paid Back"])
+                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                    count_lender_completed += 1
+                                    amount_lender_completed += float(doc["Transactions"]
+                                                                     [transaction]["Amount Repaid"])
+                                elif doc["Transactions"][transaction]["UNPAID?"] == True:
+                                    count_lender_unpaid += 1
+                                    amount_lender_unpaid += float(doc["Transactions"]
+                                                                  [transaction]["Amount Repaid"])
+                                else:
+                                    count_lender_ongoing += 1
+                                    amount_lender_ongoing += float(doc["Transactions"]
+                                                                   [transaction]["Amount Repaid"])
+                                l.append(row)
+                        except Exception as e:
+                            print(e)
+                if len(l) < 7:
+                    o += create_table_from_list(l)
+                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
+                    post.reply(o)
+                else:
+                    if count_borrower_completed == 0:
+                        o += f"u/{str(post.author)} has no loans completed as Borrower\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower for a total of ${count_borrower_completed_amount}\n\n"
+                    if count_lender_completed == 0:
+                        o += f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender for a total of ${amount_lender_completed}\n\n"
+                    if count_borrower_unpaid == 0:
+                        o += f"u/{str(post.author)} has not received any loans which are currently marked unpaid\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrower_unpaid} Loans Unpaid as Borrower for a total of ${amount_borrower_unpaid}\n\n"
+                    if count_lender_unpaid == 0:
+                        o += f"u/{str(post.author)} has not given any loans which are currently marked unpaid\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender for a total of ${amount_lender_unpaid}\n\n"
+                    if count_borrowed_ongoing == 0:
+                        o += f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower for a total of ${amount_borrower_ongoing}\n\n"
+                    if count_lender_ongoing == 0:
+                        o += f"u/{str(post.author)} has no loans ongoing as Lender\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender for a total of ${amount_lender_ongoing}\n\n"
+                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
+                    post.reply(o)
+            else:
+                o = "Please follow the format\n\n"
+                o += "[OFFER] - (your offer)\n\n"
+                o += "Example: [OFFER] - (I have some money, I'd like to offer someone)\n\n"
+                post.reply(o)
+                post.mod.remove()
+        except Exception as e:
+            print(e)
+
+    def handle_unpaid_post(self, post):
+        try:
+            regex = r"^\[UNPAID\] \((.*?)\) - \((\d+\.\d+|\d+)\) \((.*?)\)$"
+            match = re.match(regex, str(post.title))
+            if match:
+                o = f'Here is information on {str(post.author)}\n\n'
+                l = [["Borrower", "Lender", "Amount Given", "Given",
+                      "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                count_borrower_completed = 0
+                count_borrower_completed_amount = 0.0
+                count_borrower_unpaid = 0
+                amount_borrower_unpaid = 0.0
+                count_borrowed_ongoing = 0
+                amount_borrower_ongoing = 0.0
+                count_lender_completed = 0
+                amount_lender_completed = 0.0
+                count_lender_unpaid = 0
+                amount_lender_unpaid = 0.0
+                count_lender_ongoing = 0
+                amount_lender_ongoing = 0.0
+                myquery = {'Borrower': str(post.author)}
+                requester_doc = self.collection.find(myquery)
+                for i in requester_doc:
+                    for transaction in i["Transactions"]:
+                        try:
+                            row = []
+                            print(i["Transactions"][transaction])
+                            row.append(str(post.author))
+                            row.append(i["Transactions"]
+                                       [transaction]["Lender"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Amount Given"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]
+                                       ["Amount Repaid"])
+                            if i["Transactions"][transaction]["Completed?"] == True:
+                                row.append(True)
+                            else:
+                                row.append(False)
+                            row.append(i["Orignal Thread"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]
+                                       ["Date Paid Back"])
+                            if i["Transactions"][transaction]["Completed?"] == True:
+                                count_borrower_completed += 1
+                                count_borrower_completed_amount += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            elif i["Transactions"][transaction]["UNPAID?"] == True:
+                                count_borrower_unpaid += 1
+                                amount_borrower_unpaid += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            else:
+                                count_borrowed_ongoing += 1
+                                amount_borrower_ongoing += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            l.append(row)
+                        except Exception as e:
+                            print(e)
+                pipeline = [
+                    {
+                        "$match":   {"$expr": {
+                            "$gt": [
+                                {
+                                    "$size": {
+                                        "$filter": {
+                                            "input": {"$objectToArray": "$Transactions"},
+                                            "as": "item",
+                                            "cond": {
+                                                "$eq": [
+                                                    f"{str(post.author)}",
+                                                    {
+                                                        "$reduce": {
+                                                            "input": {"$objectToArray": "$$item.v"},
+                                                            "initialValue": "",
+                                                            "in": {
+                                                                "$cond": {
+                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
+                                                                    "then": "$$this.v",
+                                                                    "else": "$$value"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                },
+                                0
+                            ]
+                        }
+                        }
+                    }
+                ]
+                lender_doc = self.collection.aggregate(pipeline)
+                for doc in lender_doc:
+                    for transaction in doc["Transactions"]:
+                        try:
+                            if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                                row = []
+                                row.append(doc["Borrower"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Lender"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Amount Given"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Given?"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Amount Repaid"])
+                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                    row.append(True)
+                                else:
+                                    row.append(False)
+                                row.append(doc["Orignal Thread"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Date Given"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Date Paid Back"])
+                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                    count_lender_completed += 1
+                                    amount_lender_completed += float(doc["Transactions"]
+                                                                     [transaction]["Amount Repaid"])
+                                elif doc["Transactions"][transaction]["UNPAID?"] == True:
+                                    count_lender_unpaid += 1
+                                    amount_lender_unpaid += float(doc["Transactions"]
+                                                                  [transaction]["Amount Repaid"])
+                                else:
+                                    count_lender_ongoing += 1
+                                    amount_lender_ongoing += float(doc["Transactions"]
+                                                                   [transaction]["Amount Repaid"])
+                                l.append(row)
+                        except Exception as e:
+                            print(e)
+                if len(l) < 7:
+                    o += create_table_from_list(l)
+                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
+                    post.reply(o)
+                else:
+                    if count_borrower_completed == 0:
+                        o += f"u/{str(post.author)} has no loans completed as Borrower\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower for a total of ${count_borrower_completed_amount}\n\n"
+                    if count_lender_completed == 0:
+                        o += f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender for a total of ${amount_lender_completed}\n\n"
+                    if count_borrower_unpaid == 0:
+                        o += f"u/{str(post.author)} has not received any loans which are currently marked unpaid\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrower_unpaid} Loans Unpaid as Borrower for a total of ${amount_borrower_unpaid}\n\n"
+                    if count_lender_unpaid == 0:
+                        o += f"u/{str(post.author)} has not given any loans which are currently marked unpaid\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender for a total of ${amount_lender_unpaid}\n\n"
+                    if count_borrowed_ongoing == 0:
+                        o += f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower for a total of ${amount_borrower_ongoing}\n\n"
+                    if count_lender_ongoing == 0:
+                        o += f"u/{str(post.author)} has no loans ongoing as Lender\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender for a total of ${amount_lender_ongoing}\n\n"
+                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
+                    post.reply(o)
+            else:
+                o = "Please follow the format\n\n"
+                o += "[UNPAID] (username) - (amount) (information)\n\n"
+                o += "Example: [UNPAID] (u/username) - (100.0) (Overdue)\n\n"
+                post.reply(o)
+                post.mod.remove()
+        except Exception as e:
+            print(e)
+
     def handle_paid_post(self, post):
         try:
-            regex = r"\[PAID\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?"
-        except:
-            print("Error")
+            regex = r"^\[PAID\] \((.*?)\) - \((\d+\.\d+|\d+)\) \((.*?)\)$"
+            match = re.match(regex, str(post.title))
+            if match:
+                o = f'Here is information on {str(post.author)}\n\n'
+                l = [["Borrower", "Lender", "Amount Given", "Given",
+                      "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                count_borrower_completed = 0
+                count_borrower_completed_amount = 0.0
+                count_borrower_unpaid = 0
+                amount_borrower_unpaid = 0.0
+                count_borrowed_ongoing = 0
+                amount_borrower_ongoing = 0.0
+                count_lender_completed = 0
+                amount_lender_completed = 0.0
+                count_lender_unpaid = 0
+                amount_lender_unpaid = 0.0
+                count_lender_ongoing = 0
+                amount_lender_ongoing = 0.0
+                myquery = {'Borrower': str(post.author)}
+                requester_doc = self.collection.find(myquery)
+                for i in requester_doc:
+                    for transaction in i["Transactions"]:
+                        try:
+                            row = []
+                            print(i["Transactions"][transaction])
+                            row.append(str(post.author))
+                            row.append(i["Transactions"]
+                                       [transaction]["Lender"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Amount Given"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]
+                                       ["Amount Repaid"])
+                            if i["Transactions"][transaction]["Completed?"] == True:
+                                row.append(True)
+                            else:
+                                row.append(False)
+                            row.append(i["Orignal Thread"])
+                            row.append(i["Transactions"]
+                                       [transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]
+                                       ["Date Paid Back"])
+                            if i["Transactions"][transaction]["Completed?"] == True:
+                                count_borrower_completed += 1
+                                count_borrower_completed_amount += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            elif i["Transactions"][transaction]["UNPAID?"] == True:
+                                count_borrower_unpaid += 1
+                                amount_borrower_unpaid += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            else:
+                                count_borrowed_ongoing += 1
+                                amount_borrower_ongoing += float(
+                                    i["Transactions"][transaction]["Amount Given"])
+                            l.append(row)
+                        except Exception as e:
+                            print(e)
+                pipeline = [
+                    {
+                        "$match":   {"$expr": {
+                            "$gt": [
+                                {
+                                    "$size": {
+                                        "$filter": {
+                                            "input": {"$objectToArray": "$Transactions"},
+                                            "as": "item",
+                                            "cond": {
+                                                "$eq": [
+                                                    f"{str(post.author)}",
+                                                    {
+                                                        "$reduce": {
+                                                            "input": {"$objectToArray": "$$item.v"},
+                                                            "initialValue": "",
+                                                            "in": {
+                                                                "$cond": {
+                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
+                                                                    "then": "$$this.v",
+                                                                    "else": "$$value"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                },
+                                0
+                            ]
+                        }
+                        }
+                    }
+                ]
+                lender_doc = self.collection.aggregate(pipeline)
+                for doc in lender_doc:
+                    for transaction in doc["Transactions"]:
+                        try:
+                            if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                                row = []
+                                row.append(doc["Borrower"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Lender"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Amount Given"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Given?"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Amount Repaid"])
+                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                    row.append(True)
+                                else:
+                                    row.append(False)
+                                row.append(doc["Orignal Thread"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Date Given"])
+                                row.append(doc["Transactions"]
+                                           [transaction]["Date Paid Back"])
+                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                    count_lender_completed += 1
+                                    amount_lender_completed += float(doc["Transactions"]
+                                                                     [transaction]["Amount Repaid"])
+                                elif doc["Transactions"][transaction]["UNPAID?"] == True:
+                                    count_lender_unpaid += 1
+                                    amount_lender_unpaid += float(doc["Transactions"]
+                                                                  [transaction]["Amount Repaid"])
+                                else:
+                                    count_lender_ongoing += 1
+                                    amount_lender_ongoing += float(doc["Transactions"]
+                                                                   [transaction]["Amount Repaid"])
+                                l.append(row)
+                        except Exception as e:
+                            print(e)
+                if len(l) < 7:
+                    o += create_table_from_list(l)
+                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
+                    post.reply(o)
+                else:
+                    if count_borrower_completed == 0:
+                        o += f"u/{str(post.author)} has no loans completed as Borrower\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower for a total of ${count_borrower_completed_amount}\n\n"
+                    if count_lender_completed == 0:
+                        o += f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender for a total of ${amount_lender_completed}\n\n"
+                    if count_borrower_unpaid == 0:
+                        o += f"u/{str(post.author)} has not received any loans which are currently marked unpaid\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrower_unpaid} Loans Unpaid as Borrower for a total of ${amount_borrower_unpaid}\n\n"
+                    if count_lender_unpaid == 0:
+                        o += f"u/{str(post.author)} has not given any loans which are currently marked unpaid\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender for a total of ${amount_lender_unpaid}\n\n"
+                    if count_borrowed_ongoing == 0:
+                        o += f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower for a total of ${amount_borrower_ongoing}\n\n"
+                    if count_lender_ongoing == 0:
+                        o += f"u/{str(post.author)} has no loans ongoing as Lender\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender for a total of ${amount_lender_ongoing}\n\n"
+                    o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
+                    post.reply(o)
+            else:
+                o = "Please follow the format\n\n"
+                o += "[PAID] (username) - (amount) (other information)\n\n"
+                o += "Example: [PAID] (u\username) - (100.0) (On Time)\n\n"
+                post.reply(o)
+                post.mod.remove()
+        except Exception as e:
+            print(e)
 
     def handle_req_post(self, post):
         try:

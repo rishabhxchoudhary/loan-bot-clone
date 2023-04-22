@@ -34,6 +34,8 @@ class RedditBot:
         self.subreddit = self.reddit.subreddit(target_subreddit)
         self.collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where())[
             credentials.mongo_dbname][credentials.mongo_collection]
+        self.post_collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where())[
+            "Posts"][credentials.mongo_collection]
         self.post_stream = self.subreddit.stream.submissions()
         self.comment_stream = self.subreddit.stream.comments()
         self.commands = {
@@ -213,7 +215,6 @@ class RedditBot:
     def handle_req_post(self, post):
         try:
             regex = r"^\[REQ\] \((\d+\.\d+)\) - \(.*\), \(.*\), \(.*\)$"
-            # regex = r"^\[REQ\] \((\d+\.\d+)\) - \(.*\), \(.*\), \(.*\)$"
             match = re.match(regex, str(post.title))
             if match:
                 doc = {
@@ -230,11 +231,17 @@ class RedditBot:
                 l = [["Borrower", "Lender", "Amount Given", "Given",
                       "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
                 count_borrower_completed = 0
+                count_borrower_completed_amount = 0.0
                 count_borrower_unpaid = 0
+                amount_borrower_unpaid = 0.0
                 count_borrowed_ongoing = 0
+                amount_borrower_ongoing = 0.0
                 count_lender_completed = 0
+                amount_lender_completed = 0.0
                 count_lender_unpaid = 0
+                amount_lender_unpaid = 0.0
                 count_lender_ongoing = 0
+                amount_lender_ongoing = 0.0
                 myquery = {'Borrower': str(post.author)}
                 requester_doc = self.collection.find(myquery)
                 for i in requester_doc:
@@ -262,10 +269,16 @@ class RedditBot:
                                        ["Date Paid Back"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 count_borrower_completed += 1
+                                count_borrower_completed_amount += float(
+                                    i["Transactions"][transaction]["Amount Given"])
                             elif i["Transactions"][transaction]["UNPAID?"] == True:
                                 count_borrower_unpaid += 1
+                                amount_borrower_unpaid += float(
+                                    i["Transactions"][transaction]["Amount Given"])
                             else:
                                 count_borrowed_ongoing += 1
+                                amount_borrower_ongoing += float(
+                                    i["Transactions"][transaction]["Amount Given"])
                             l.append(row)
                         except Exception as e:
                             print(e)
@@ -331,10 +344,16 @@ class RedditBot:
                                            [transaction]["Date Paid Back"])
                                 if doc["Transactions"][transaction]["Completed?"] == True:
                                     count_lender_completed += 1
+                                    amount_lender_completed += float(doc["Transactions"]
+                                                                     [transaction]["Amount Repaid"])
                                 elif doc["Transactions"][transaction]["UNPAID?"] == True:
                                     count_lender_unpaid += 1
+                                    amount_lender_unpaid += float(doc["Transactions"]
+                                                                  [transaction]["Amount Repaid"])
                                 else:
                                     count_lender_ongoing += 1
+                                    amount_lender_ongoing += float(doc["Transactions"]
+                                                                   [transaction]["Amount Repaid"])
                                 l.append(row)
                         except Exception as e:
                             print(e)
@@ -343,12 +362,30 @@ class RedditBot:
                     o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
                 else:
-                    o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower\n\n"
-                    o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender\n\n"
-                    o += f"u/{str(post.author)} has {count_borrower_unpaid} Loans Unpaid as Borrower\n\n"
-                    o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender\n\n"
-                    o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower\n\n"
-                    o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender\n\n"
+                    if count_borrower_completed == 0:
+                        o += f"u/{str(post.author)} has no loans completed as Borrower\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower for a total of ${count_borrower_completed_amount}\n\n"
+                    if count_lender_completed == 0:
+                        o += f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender for a total of ${amount_lender_completed}\n\n"
+                    if count_borrower_unpaid == 0:
+                        o += f"u/{str(post.author)} has not received any loans which are currently marked unpaid\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrower_unpaid} Loans Unpaid as Borrower for a total of ${amount_borrower_unpaid}\n\n"
+                    if count_lender_unpaid == 0:
+                        o += f"u/{str(post.author)} has not given any loans which are currently marked unpaid\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender for a total of ${amount_lender_unpaid}\n\n"
+                    if count_borrowed_ongoing == 0:
+                        o += f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower for a total of ${amount_borrower_ongoing}\n\n"
+                    if count_lender_ongoing == 0:
+                        o += f"u/{str(post.author)} has no loans ongoing as Lender\n\n"
+                    else:
+                        o += f"u/{str(post.author)} has {count_lender_ongoing} Loans Ongoing as Lender for a total of ${amount_lender_ongoing}\n\n"
                     o += f"\nCommand to loan should be ```$loan {str(amt)}```\n"
                     post.reply(o)
             else:
@@ -363,7 +400,7 @@ class RedditBot:
     def loan(self, comment):
         try:
             regex = r"\$loan\s+(\d+(?:\.\d+)?)"
-            match = re.match(regex, str(comment.body))
+            match = re.match(regex, str(comment.body).strip())
             if match:
                 post = comment.submission
                 post_url = post.url
@@ -373,7 +410,7 @@ class RedditBot:
                 loan_amount_given = float(match.group(1))
                 amount_give_till_now = float(doc["Amount Given"])
                 loan_amount_max_asked = float(
-                    re.match(r"\[REQ\]\s*-\s*\(([\d\.]+)\)(?:\s*-)?(?:\s*\((.*?)\))?", comment.submission.title).group(1))
+                    re.match(r"^\[REQ\] \((\d+\.\d+)\) - \(.*\), \(.*\), \(.*\)$", comment.submission.title).group(1))
                 lender_name = comment.author.name
                 borrower_name = comment.submission.author
                 paid_with_id = str(random.randint(10000, 99999))
@@ -394,7 +431,6 @@ class RedditBot:
                         "Date Paid Back": None,
                         "Completed?": False
                     }
-
                     arr[paid_with_id] = new_doc
                     newvalues = {"$set": {"Transactions": arr}}
                     self.collection.update_one(myquery, newvalues)
@@ -403,6 +439,14 @@ class RedditBot:
                         paid_with_id, loan_amount_given)
                     highlighted_text_2 = "$repaid_with_id {} {}".format(
                         paid_with_id, loan_amount_given)
+
+                    new_doc = {
+                        "Borrower": str(comment.submission.author),
+                        "Lender": str(comment.author),
+                        'Orignal Thread': post_url,
+                        "ID": paid_with_id
+                    }
+                    self.post_collection.insert_one(new_doc)
                     message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} to [{borrower_name}](/u/{borrower_name})\n\n" \
                         f"```The unique id for this transaction is - {paid_with_id}```\n\n"\
                         f"The format of the confirm command will be:\n\n"\
@@ -432,24 +476,27 @@ class RedditBot:
             regex = r"\$confirm\s+(\d{5})\s+(\d+(?:\.\d+)?)"
             match = re.match(regex, comment.body)
             if match:
-                post = comment.submission
-                post_url = post.url
+                paid_with_id = match.group(1)
+                doc1 = self.post_collection.find_one({"ID": paid_with_id})
+                if not doc1:
+                    message = f"Invalid ID. Please check the ID and try again."
+                    comment.reply(message)
+                    return
+                post_url = doc1["Orignal Thread"]
+                post = self.reddit.submission(url=post_url)
                 myquery = {'Orignal Thread': post_url}
                 doc = self.collection.find_one(myquery)
                 existing_amt_given = doc["Amount Given"]
                 amount_requested = doc["Amount Requested"]
                 transactions = doc["Transactions"]
-                paid_with_id = match.group(1)
                 comment_amount_received = float(match.group(2))
-
-                borrower_name = comment.submission.author
+                borrower_name = post.author
                 comment_author = comment.author
                 lender_name = transactions[paid_with_id]["Lender"]
                 lender_actual_amount_given = float(
                     transactions[paid_with_id]['Amount Given'])
 
                 if paid_with_id in transactions:
-
                     if borrower_name != comment_author:
                         message = f"[{lender_name}](/u/{lender_name}), is not authorized to confirm this loan. Only [{borrower_name}](/u/{borrower_name}) can do this."
                         comment.reply(message)

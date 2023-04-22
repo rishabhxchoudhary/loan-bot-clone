@@ -940,8 +940,10 @@ class RedditBot:
                 lender_name = comment.author.name
                 borrower_name = comment.submission.author
                 paid_with_id = str(random.randint(10000, 99999))
-                while paid_with_id in arr:
+                query = {"ID": paid_with_id}
+                while self.post_collection.find_one(query) != None:
                     paid_with_id = str(random.randint(10000, 99999))
+                    query = {"ID": paid_with_id}
                 if borrower_name == lender_name:
                     message = f"[{borrower_name}](/u/{borrower_name})-Borrower dont have access to write this command."
                     comment.reply(message)

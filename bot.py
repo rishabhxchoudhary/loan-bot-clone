@@ -206,8 +206,8 @@ class RedditBot:
         try:
             o = "Please use the correct Post format\n\n"
             o += "You can use one of the following post formats :\n\n"
-            o += "```[REQ] (Amount) - (#City, State, Country), (Repayment Date), (Payment Method)```\n\n"
-            o += "Example: [REQ] (100.00) - (New York City, New York, United States), (2023-05-01), (PayPal)\n\n\n\n"
+            o += "```[REQ] (Amount) (Currency) - (#City, State, Country), (Repayment Date), (Payment Method)```\n\n"
+            o += "Example: [REQ] (100.00) (USD) - (New York City, New York, United States), (2023-05-01), (PayPal)\n\n\n\n"
             o += "```[PAID] (username) - (amount) (other information)```\n\n"
             o += "Example: [PAID] (u\\username) - (100.0) (On Time)\n\n\n\n"
             o += "```[UNPAID] (username) - (amount) (information)```\n\n"
@@ -919,8 +919,8 @@ class RedditBot:
                     post.reply(o)
             else:
                 o = "Please follow the format\n\n"
-                o += "[REQ] (Amount) - (#City, State, Country), (Repayment Date), (Payment Method)\n\n"
-                o += "Example: [REQ] (100.00) - (New York City, New York, United States), (2023-05-01), (PayPal)\n\n"
+                o += "[REQ] (Amount) (Currency) - (#City, State, Country), (Repayment Date and Repayment amount), (Payment Method)\n\n"
+                o += "Example: [REQ] (100.00) (USD) - (New York City, New York, United States), (2023-05-01), (PayPal)\n\n"
                 post.reply(o)
                 post.mod.remove()
         except Exception as e:

@@ -740,12 +740,13 @@ class RedditBot:
 
     def handle_req_post(self, post):
         try:
-            regex = r"^\[REQ\] \((\d+\.\d+)\) - \(.*\), \(.*\), \(.*\)$"
+            regex = r"\[REQ\]\s\(([\d.]+)\)\s\(([^)]+)\)\s-\s\(([^)]+)\),\s\(([^)]+)\),\s\(([^)]+)\)"
             match = re.match(regex, str(post.title))
             if match:
                 doc = {
                     "Borrower": str(post.author),
                     "Amount Requested": float(match.group(1)),
+                    "Currency": match.group(2),
                     "Amount Given": 0,
                     "Amount Repaid": 0,
                     "Orignal Thread": post.url,
@@ -754,7 +755,7 @@ class RedditBot:
                 amt = float(match.group(1))
                 self.collection.insert_one(doc)
                 o = f'Here is information on {str(post.author)}\n\n'
-                l = [["Borrower", "Lender", "Amount Given", "Given",
+                l = [["Borrower", "Lender", "Amount Given", "Given", "Currency",
                       "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
                 count_borrower_completed = 0
                 count_borrower_completed_amount = 0.0
@@ -782,6 +783,7 @@ class RedditBot:
                                        [transaction]["Amount Given"])
                             row.append(i["Transactions"]
                                        [transaction]["Given?"])
+                            row.append(i["Currency"])
                             row.append(i["Transactions"][transaction]
                                        ["Amount Repaid"])
                             if i["Transactions"][transaction]["Completed?"] == True:
@@ -857,6 +859,7 @@ class RedditBot:
                                            [transaction]["Amount Given"])
                                 row.append(doc["Transactions"]
                                            [transaction]["Given?"])
+                                row.append(doc["Currency"])
                                 row.append(doc["Transactions"]
                                            [transaction]["Amount Repaid"])
                                 if doc["Transactions"][transaction]["Completed?"] == True:
@@ -1230,7 +1233,7 @@ class RedditBot:
             if user_id != False:
                 print(comment.body)
                 o = f'Here is information on {user_id}\n\n'
-                l = [["Borrower", "Lender", "Amount Given", "Given",
+                l = [["Borrower", "Lender", "Amount Given", "Given", "Currency",
                       "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
                 # l = [["Borrower", "Lender", "Amount Given", "Amount Repaid",
                 #       "Orignal Thread", "Date Given", "Date Paid Back "]]
@@ -1247,6 +1250,7 @@ class RedditBot:
                                         [transaction]["Amount Given"])
                             row.append(i["Transactions"]
                                         [transaction]["Given?"])
+                            row.append(i["Currency"])
                             row.append(i["Transactions"][transaction]
                                         ["Amount Repaid"])
                             if i["Transactions"][transaction]["Completed?"]:
@@ -1310,6 +1314,7 @@ class RedditBot:
                                            [transaction]["Amount Given"])
                                 row.append(doc["Transactions"]
                                            [transaction]["Given?"])
+                                row.append(doc["Currency"])
                                 row.append(doc["Transactions"]
                                            [transaction]["Amount Repaid"])
                                 if doc["Transactions"][transaction]["Completed?"]:

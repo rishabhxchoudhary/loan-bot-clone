@@ -13,39 +13,43 @@ def create_table_from_list(l):
     for i in range(len(l)):
         row = "|"
         for j in range(len(l[i])):
-            row += str(l[i][j])+"|"
-        row += '\n'
+            row += str(l[i][j]) + "|"
+        row += "\n"
         if i == 0:
-            row += ":--|"*(j+1)
-            row += '\n'
+            row += ":--|" * (j + 1)
+            row += "\n"
         final_string += row
     return final_string
 
 
 class RedditBot:
-    def __init__(self, client_id, client_secret, username, password, user_agent, target_subreddit):
+    def __init__(
+        self, client_id, client_secret, username, password, user_agent, target_subreddit
+    ):
         self.reddit = praw.Reddit(
             client_id=client_id,
             client_secret=client_secret,
             username=username,
             password=password,
-            user_agent=user_agent
+            user_agent=user_agent,
         )
         self.subreddit = self.reddit.subreddit(target_subreddit)
-        self.collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where())[
-            credentials.mongo_dbname][credentials.mongo_collection]
-        self.post_collection = pymongo.MongoClient(credentials.mongo_uri, tlsCAFile=certifi.where())[
-            "Posts"][credentials.mongo_collection]
+        self.collection = pymongo.MongoClient(
+            credentials.mongo_uri, tlsCAFile=certifi.where()
+        )[credentials.mongo_dbname][credentials.mongo_collection]
+        self.post_collection = pymongo.MongoClient(
+            credentials.mongo_uri, tlsCAFile=certifi.where()
+        )["Posts"][credentials.mongo_collection]
         self.post_stream = self.subreddit.stream.submissions()
         self.comment_stream = self.subreddit.stream.comments()
         self.commands = {
-            'help': self.help_command,
-            'loan': self.loan,
-            'repaid\_with\_id': self.repaid_with_id,
-            'repaid\_confirm': self.repaid_confirm,
-            'confirm': self.confirm,
-            'check': self.check,
-            'unpaid': self.unpaid
+            "help": self.help_command,
+            "loan": self.loan,
+            "repaid\_with\_id": self.repaid_with_id,
+            "repaid\_confirm": self.repaid_confirm,
+            "confirm": self.confirm,
+            "check": self.check,
+            "unpaid": self.unpaid,
         }
 
     def unpaid(self, comment):
@@ -61,94 +65,107 @@ class RedditBot:
                     return
                 post_url = doc1["Orignal Thread"]
                 post = self.reddit.submission(url=post_url)
-                myquery = {'Orignal Thread': post_url}
+                myquery = {"Orignal Thread": post_url}
                 doc = self.collection.find_one(myquery)
                 arr = doc["Transactions"]
                 transaction = arr[paid_with_id]
                 if comment.author != transaction["Lender"]:
                     comment.reply(
-                        "You cannot mark someone else's transaction as unpaid")
+                        "You cannot mark someone else's transaction as unpaid"
+                    )
                     return
                 if transaction["Completed?"] == True:
-                    comment.reply(
-                        "This transaction has already been completed")
+                    comment.reply("This transaction has already been completed")
                     return
                 if transaction["Lender"] == str(post.author):
-                    comment.reply(
-                        "You cannot mark your own transaction as unpaid")
+                    comment.reply("You cannot mark your own transaction as unpaid")
                     return
                 if transaction["UNPAID?"] == "**UNPAID**":
-                    comment.reply(
-                        "This transaction has already been marked as unpaid")
+                    comment.reply("This transaction has already been marked as unpaid")
                     return
                 arr[paid_with_id]["UNPAID?"] = "**UNPAID**"
                 newvalues = {"$set": {"Transactions": arr}}
                 self.collection.update_one(myquery, newvalues)
                 o = f"Sorry to hear that about u/{str(post.author)}\n\n"
-                l = [["Borrower", "Lender", "Amount Given", "Given",
-                      "Amount Repaid", "Repaid", "UNPAID?", "Orignal Thread", "Date Given", "Date Repaid"]]
-                myquery = {'Borrower': str(post.author)}
+                l = [
+                    [
+                        "Borrower",
+                        "Lender",
+                        "Amount Given",
+                        "Given",
+                        "Amount Repaid",
+                        "Repaid",
+                        "UNPAID?",
+                        "Orignal Thread",
+                        "Date Given",
+                        "Date Repaid",
+                    ]
+                ]
+                myquery = {"Borrower": str(post.author)}
                 requester_doc = self.collection.find(myquery)
                 for i in requester_doc:
                     for transaction in i["Transactions"]:
                         try:
                             row = []
                             row.append(str(post.author))
-                            row.append(i["Transactions"]
-                                       [transaction]["Lender"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Amount Given"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Given?"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Amount Repaid"])
+                            row.append(i["Transactions"][transaction]["Lender"])
+                            row.append(i["Transactions"][transaction]["Amount Given"])
+                            row.append(i["Transactions"][transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]["Amount Repaid"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 row.append(True)
                             else:
                                 row.append(False)
-                            row.append(i["Transactions"]
-                                       [transaction]["UNPAID?"])
+                            row.append(i["Transactions"][transaction]["UNPAID?"])
                             row.append(i["Orignal Thread"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Date Given"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Date Paid Back"])
+                            row.append(i["Transactions"][transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]["Date Paid Back"])
                             l.append(row)
                         except Exception as e:
                             print(e)
                 pipeline = [
                     {
-                        "$match":   {"$expr": {
-                            "$gt": [
-                                {
-                                    "$size": {
-                                        "$filter": {
-                                            "input": {"$objectToArray": "$Transactions"},
-                                            "as": "item",
-                                            "cond": {
-                                                "$eq": [
-                                                    f"{str(post.author)}",
-                                                    {
-                                                        "$reduce": {
-                                                            "input": {"$objectToArray": "$$item.v"},
-                                                            "initialValue": "",
-                                                            "in": {
-                                                                "$cond": {
-                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
-                                                                    "then": "$$this.v",
-                                                                    "else": "$$value"
-                                                                }
+                        "$match": {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$size": {
+                                            "$filter": {
+                                                "input": {
+                                                    "$objectToArray": "$Transactions"
+                                                },
+                                                "as": "item",
+                                                "cond": {
+                                                    "$eq": [
+                                                        f"{str(post.author)}",
+                                                        {
+                                                            "$reduce": {
+                                                                "input": {
+                                                                    "$objectToArray": "$$item.v"
+                                                                },
+                                                                "initialValue": "",
+                                                                "in": {
+                                                                    "$cond": {
+                                                                        "if": {
+                                                                            "$eq": [
+                                                                                "Lender",
+                                                                                "$$this.k",
+                                                                            ]
+                                                                        },
+                                                                        "then": "$$this.v",
+                                                                        "else": "$$value",
+                                                                    }
+                                                                },
                                                             }
-                                                        }
-                                                    }
-                                                ]
+                                                        },
+                                                    ]
+                                                },
                                             }
                                         }
-                                    }
-                                },
-                                0
-                            ]
-                        }
+                                    },
+                                    0,
+                                ]
+                            }
                         }
                     }
                 ]
@@ -156,28 +173,34 @@ class RedditBot:
                 for doc in lender_doc:
                     for transaction in doc["Transactions"]:
                         try:
-                            if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                            if doc["Transactions"][transaction]["Lender"] == str(
+                                post.author
+                            ):
                                 row = []
                                 row.append(doc["Borrower"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Lender"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Given?"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Repaid"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(doc["Transactions"][transaction]["Lender"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Given"]
+                                )
+                                row.append(doc["Transactions"][transaction]["Given?"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Repaid"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     row.append(True)
                                 else:
                                     row.append(False)
-                                row.append(doc["Transactions"]
-                                           [transaction]["UNPAID?"])
+                                row.append(doc["Transactions"][transaction]["UNPAID?"])
                                 row.append(doc["Orignal Thread"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Paid Back"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Given"]
+                                )
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Paid Back"]
+                                )
                                 l.append(row)
                         except Exception as e:
                             print(e)
@@ -190,7 +213,7 @@ class RedditBot:
             print(e)
 
     def handle_new_post(self, post):
-        print(f'New post: {post.title}')
+        print(f"New post: {post.title}")
         if str(post.title).startswith("[REQ]"):
             self.handle_req_post(post)
         elif str(post.title).startswith("[PAID]"):
@@ -224,9 +247,20 @@ class RedditBot:
             regex = r"^\[OFFER\] - \((.*?)\)$"
             match = re.match(regex, str(post.title))
             if match:
-                o = f'Here is information on {str(post.author)}\n\n'
-                l = [["Borrower", "Lender", "Amount Given", "Given",
-                      "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                o = f"Here is information on {str(post.author)}\n\n"
+                l = [
+                    [
+                        "Borrower",
+                        "Lender",
+                        "Amount Given",
+                        "Given",
+                        "Amount Repaid",
+                        "Repaid",
+                        "Orignal Thread",
+                        "Date Given",
+                        "Date Repaid",
+                    ]
+                ]
                 count_borrower_completed = 0
                 count_borrower_completed_amount = 0.0
                 count_borrower_unpaid = 0
@@ -239,7 +273,7 @@ class RedditBot:
                 amount_lender_unpaid = 0.0
                 count_lender_ongoing = 0
                 amount_lender_ongoing = 0.0
-                myquery = {'Borrower': str(post.author)}
+                myquery = {"Borrower": str(post.author)}
                 requester_doc = self.collection.find(myquery)
                 for i in requester_doc:
                     for transaction in i["Transactions"]:
@@ -247,71 +281,78 @@ class RedditBot:
                             row = []
                             print(i["Transactions"][transaction])
                             row.append(str(post.author))
-                            row.append(i["Transactions"]
-                                       [transaction]["Lender"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Amount Given"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Given?"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Amount Repaid"])
+                            row.append(i["Transactions"][transaction]["Lender"])
+                            row.append(i["Transactions"][transaction]["Amount Given"])
+                            row.append(i["Transactions"][transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]["Amount Repaid"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 row.append(True)
                             else:
                                 row.append(False)
                             row.append(i["Orignal Thread"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Date Given"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Date Paid Back"])
+                            row.append(i["Transactions"][transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]["Date Paid Back"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 count_borrower_completed += 1
                                 count_borrower_completed_amount += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             elif i["Transactions"][transaction]["UNPAID?"] == True:
                                 count_borrower_unpaid += 1
                                 amount_borrower_unpaid += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             else:
                                 count_borrowed_ongoing += 1
                                 amount_borrower_ongoing += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             l.append(row)
                         except Exception as e:
                             print(e)
                 pipeline = [
                     {
-                        "$match":   {"$expr": {
-                            "$gt": [
-                                {
-                                    "$size": {
-                                        "$filter": {
-                                            "input": {"$objectToArray": "$Transactions"},
-                                            "as": "item",
-                                            "cond": {
-                                                "$eq": [
-                                                    f"{str(post.author)}",
-                                                    {
-                                                        "$reduce": {
-                                                            "input": {"$objectToArray": "$$item.v"},
-                                                            "initialValue": "",
-                                                            "in": {
-                                                                "$cond": {
-                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
-                                                                    "then": "$$this.v",
-                                                                    "else": "$$value"
-                                                                }
+                        "$match": {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$size": {
+                                            "$filter": {
+                                                "input": {
+                                                    "$objectToArray": "$Transactions"
+                                                },
+                                                "as": "item",
+                                                "cond": {
+                                                    "$eq": [
+                                                        f"{str(post.author)}",
+                                                        {
+                                                            "$reduce": {
+                                                                "input": {
+                                                                    "$objectToArray": "$$item.v"
+                                                                },
+                                                                "initialValue": "",
+                                                                "in": {
+                                                                    "$cond": {
+                                                                        "if": {
+                                                                            "$eq": [
+                                                                                "Lender",
+                                                                                "$$this.k",
+                                                                            ]
+                                                                        },
+                                                                        "then": "$$this.v",
+                                                                        "else": "$$value",
+                                                                    }
+                                                                },
                                                             }
-                                                        }
-                                                    }
-                                                ]
+                                                        },
+                                                    ]
+                                                },
                                             }
                                         }
-                                    }
-                                },
-                                0
-                            ]
-                        }
+                                    },
+                                    0,
+                                ]
+                            }
                         }
                     }
                 ]
@@ -319,38 +360,59 @@ class RedditBot:
                 for doc in lender_doc:
                     for transaction in doc["Transactions"]:
                         try:
-                            if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                            if doc["Transactions"][transaction]["Lender"] == str(
+                                post.author
+                            ):
                                 row = []
                                 row.append(doc["Borrower"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Lender"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Given?"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Repaid"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(doc["Transactions"][transaction]["Lender"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Given"]
+                                )
+                                row.append(doc["Transactions"][transaction]["Given?"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Repaid"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     row.append(True)
                                 else:
                                     row.append(False)
                                 row.append(doc["Orignal Thread"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Paid Back"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Given"]
+                                )
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Paid Back"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     count_lender_completed += 1
-                                    amount_lender_completed += float(doc["Transactions"]
-                                                                     [transaction]["Amount Repaid"])
-                                elif doc["Transactions"][transaction]["UNPAID?"] == True:
+                                    amount_lender_completed += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
+                                elif (
+                                    doc["Transactions"][transaction]["UNPAID?"] == True
+                                ):
                                     count_lender_unpaid += 1
-                                    amount_lender_unpaid += float(doc["Transactions"]
-                                                                  [transaction]["Amount Repaid"])
+                                    amount_lender_unpaid += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
                                 else:
                                     count_lender_ongoing += 1
-                                    amount_lender_ongoing += float(doc["Transactions"]
-                                                                   [transaction]["Amount Repaid"])
+                                    amount_lender_ongoing += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
                                 l.append(row)
                         except Exception as e:
                             print(e)
@@ -363,7 +425,9 @@ class RedditBot:
                     else:
                         o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower for a total of ${count_borrower_completed_amount}\n\n"
                     if count_lender_completed == 0:
-                        o += f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                        o += (
+                            f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                        )
                     else:
                         o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender for a total of ${amount_lender_completed}\n\n"
                     if count_borrower_unpaid == 0:
@@ -375,7 +439,9 @@ class RedditBot:
                     else:
                         o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender for a total of ${amount_lender_unpaid}\n\n"
                     if count_borrowed_ongoing == 0:
-                        o += f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                        o += (
+                            f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                        )
                     else:
                         o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower for a total of ${amount_borrower_ongoing}\n\n"
                     if count_lender_ongoing == 0:
@@ -397,9 +463,20 @@ class RedditBot:
             regex = r"^\[UNPAID\] \((.*?)\) - \((\d+\.\d+|\d+)\) \((.*?)\)$"
             match = re.match(regex, str(post.title))
             if match:
-                o = f'Here is information on {str(post.author)}\n\n'
-                l = [["Borrower", "Lender", "Amount Given", "Given",
-                      "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                o = f"Here is information on {str(post.author)}\n\n"
+                l = [
+                    [
+                        "Borrower",
+                        "Lender",
+                        "Amount Given",
+                        "Given",
+                        "Amount Repaid",
+                        "Repaid",
+                        "Orignal Thread",
+                        "Date Given",
+                        "Date Repaid",
+                    ]
+                ]
                 count_borrower_completed = 0
                 count_borrower_completed_amount = 0.0
                 count_borrower_unpaid = 0
@@ -412,7 +489,7 @@ class RedditBot:
                 amount_lender_unpaid = 0.0
                 count_lender_ongoing = 0
                 amount_lender_ongoing = 0.0
-                myquery = {'Borrower': str(post.author)}
+                myquery = {"Borrower": str(post.author)}
                 requester_doc = self.collection.find(myquery)
                 for i in requester_doc:
                     for transaction in i["Transactions"]:
@@ -420,71 +497,78 @@ class RedditBot:
                             row = []
                             print(i["Transactions"][transaction])
                             row.append(str(post.author))
-                            row.append(i["Transactions"]
-                                       [transaction]["Lender"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Amount Given"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Given?"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Amount Repaid"])
+                            row.append(i["Transactions"][transaction]["Lender"])
+                            row.append(i["Transactions"][transaction]["Amount Given"])
+                            row.append(i["Transactions"][transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]["Amount Repaid"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 row.append(True)
                             else:
                                 row.append(False)
                             row.append(i["Orignal Thread"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Date Given"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Date Paid Back"])
+                            row.append(i["Transactions"][transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]["Date Paid Back"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 count_borrower_completed += 1
                                 count_borrower_completed_amount += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             elif i["Transactions"][transaction]["UNPAID?"] == True:
                                 count_borrower_unpaid += 1
                                 amount_borrower_unpaid += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             else:
                                 count_borrowed_ongoing += 1
                                 amount_borrower_ongoing += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             l.append(row)
                         except Exception as e:
                             print(e)
                 pipeline = [
                     {
-                        "$match":   {"$expr": {
-                            "$gt": [
-                                {
-                                    "$size": {
-                                        "$filter": {
-                                            "input": {"$objectToArray": "$Transactions"},
-                                            "as": "item",
-                                            "cond": {
-                                                "$eq": [
-                                                    f"{str(post.author)}",
-                                                    {
-                                                        "$reduce": {
-                                                            "input": {"$objectToArray": "$$item.v"},
-                                                            "initialValue": "",
-                                                            "in": {
-                                                                "$cond": {
-                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
-                                                                    "then": "$$this.v",
-                                                                    "else": "$$value"
-                                                                }
+                        "$match": {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$size": {
+                                            "$filter": {
+                                                "input": {
+                                                    "$objectToArray": "$Transactions"
+                                                },
+                                                "as": "item",
+                                                "cond": {
+                                                    "$eq": [
+                                                        f"{str(post.author)}",
+                                                        {
+                                                            "$reduce": {
+                                                                "input": {
+                                                                    "$objectToArray": "$$item.v"
+                                                                },
+                                                                "initialValue": "",
+                                                                "in": {
+                                                                    "$cond": {
+                                                                        "if": {
+                                                                            "$eq": [
+                                                                                "Lender",
+                                                                                "$$this.k",
+                                                                            ]
+                                                                        },
+                                                                        "then": "$$this.v",
+                                                                        "else": "$$value",
+                                                                    }
+                                                                },
                                                             }
-                                                        }
-                                                    }
-                                                ]
+                                                        },
+                                                    ]
+                                                },
                                             }
                                         }
-                                    }
-                                },
-                                0
-                            ]
-                        }
+                                    },
+                                    0,
+                                ]
+                            }
                         }
                     }
                 ]
@@ -492,38 +576,59 @@ class RedditBot:
                 for doc in lender_doc:
                     for transaction in doc["Transactions"]:
                         try:
-                            if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                            if doc["Transactions"][transaction]["Lender"] == str(
+                                post.author
+                            ):
                                 row = []
                                 row.append(doc["Borrower"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Lender"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Given?"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Repaid"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(doc["Transactions"][transaction]["Lender"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Given"]
+                                )
+                                row.append(doc["Transactions"][transaction]["Given?"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Repaid"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     row.append(True)
                                 else:
                                     row.append(False)
                                 row.append(doc["Orignal Thread"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Paid Back"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Given"]
+                                )
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Paid Back"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     count_lender_completed += 1
-                                    amount_lender_completed += float(doc["Transactions"]
-                                                                     [transaction]["Amount Repaid"])
-                                elif doc["Transactions"][transaction]["UNPAID?"] == True:
+                                    amount_lender_completed += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
+                                elif (
+                                    doc["Transactions"][transaction]["UNPAID?"] == True
+                                ):
                                     count_lender_unpaid += 1
-                                    amount_lender_unpaid += float(doc["Transactions"]
-                                                                  [transaction]["Amount Repaid"])
+                                    amount_lender_unpaid += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
                                 else:
                                     count_lender_ongoing += 1
-                                    amount_lender_ongoing += float(doc["Transactions"]
-                                                                   [transaction]["Amount Repaid"])
+                                    amount_lender_ongoing += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
                                 l.append(row)
                         except Exception as e:
                             print(e)
@@ -536,7 +641,9 @@ class RedditBot:
                     else:
                         o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower for a total of ${count_borrower_completed_amount}\n\n"
                     if count_lender_completed == 0:
-                        o += f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                        o += (
+                            f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                        )
                     else:
                         o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender for a total of ${amount_lender_completed}\n\n"
                     if count_borrower_unpaid == 0:
@@ -548,7 +655,9 @@ class RedditBot:
                     else:
                         o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender for a total of ${amount_lender_unpaid}\n\n"
                     if count_borrowed_ongoing == 0:
-                        o += f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                        o += (
+                            f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                        )
                     else:
                         o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower for a total of ${amount_borrower_ongoing}\n\n"
                     if count_lender_ongoing == 0:
@@ -570,9 +679,20 @@ class RedditBot:
             regex = r"^\[PAID\] \((.*?)\) - \((\d+\.\d+|\d+)\) \((.*?)\)$"
             match = re.match(regex, str(post.title))
             if match:
-                o = f'Here is information on {str(post.author)}\n\n'
-                l = [["Borrower", "Lender", "Amount Given", "Given",
-                      "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                o = f"Here is information on {str(post.author)}\n\n"
+                l = [
+                    [
+                        "Borrower",
+                        "Lender",
+                        "Amount Given",
+                        "Given",
+                        "Amount Repaid",
+                        "Repaid",
+                        "Orignal Thread",
+                        "Date Given",
+                        "Date Repaid",
+                    ]
+                ]
                 count_borrower_completed = 0
                 count_borrower_completed_amount = 0.0
                 count_borrower_unpaid = 0
@@ -585,7 +705,7 @@ class RedditBot:
                 amount_lender_unpaid = 0.0
                 count_lender_ongoing = 0
                 amount_lender_ongoing = 0.0
-                myquery = {'Borrower': str(post.author)}
+                myquery = {"Borrower": str(post.author)}
                 requester_doc = self.collection.find(myquery)
                 for i in requester_doc:
                     for transaction in i["Transactions"]:
@@ -593,71 +713,78 @@ class RedditBot:
                             row = []
                             print(i["Transactions"][transaction])
                             row.append(str(post.author))
-                            row.append(i["Transactions"]
-                                       [transaction]["Lender"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Amount Given"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Given?"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Amount Repaid"])
+                            row.append(i["Transactions"][transaction]["Lender"])
+                            row.append(i["Transactions"][transaction]["Amount Given"])
+                            row.append(i["Transactions"][transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]["Amount Repaid"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 row.append(True)
                             else:
                                 row.append(False)
                             row.append(i["Orignal Thread"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Date Given"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Date Paid Back"])
+                            row.append(i["Transactions"][transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]["Date Paid Back"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 count_borrower_completed += 1
                                 count_borrower_completed_amount += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             elif i["Transactions"][transaction]["UNPAID?"] == True:
                                 count_borrower_unpaid += 1
                                 amount_borrower_unpaid += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             else:
                                 count_borrowed_ongoing += 1
                                 amount_borrower_ongoing += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             l.append(row)
                         except Exception as e:
                             print(e)
                 pipeline = [
                     {
-                        "$match":   {"$expr": {
-                            "$gt": [
-                                {
-                                    "$size": {
-                                        "$filter": {
-                                            "input": {"$objectToArray": "$Transactions"},
-                                            "as": "item",
-                                            "cond": {
-                                                "$eq": [
-                                                    f"{str(post.author)}",
-                                                    {
-                                                        "$reduce": {
-                                                            "input": {"$objectToArray": "$$item.v"},
-                                                            "initialValue": "",
-                                                            "in": {
-                                                                "$cond": {
-                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
-                                                                    "then": "$$this.v",
-                                                                    "else": "$$value"
-                                                                }
+                        "$match": {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$size": {
+                                            "$filter": {
+                                                "input": {
+                                                    "$objectToArray": "$Transactions"
+                                                },
+                                                "as": "item",
+                                                "cond": {
+                                                    "$eq": [
+                                                        f"{str(post.author)}",
+                                                        {
+                                                            "$reduce": {
+                                                                "input": {
+                                                                    "$objectToArray": "$$item.v"
+                                                                },
+                                                                "initialValue": "",
+                                                                "in": {
+                                                                    "$cond": {
+                                                                        "if": {
+                                                                            "$eq": [
+                                                                                "Lender",
+                                                                                "$$this.k",
+                                                                            ]
+                                                                        },
+                                                                        "then": "$$this.v",
+                                                                        "else": "$$value",
+                                                                    }
+                                                                },
                                                             }
-                                                        }
-                                                    }
-                                                ]
+                                                        },
+                                                    ]
+                                                },
                                             }
                                         }
-                                    }
-                                },
-                                0
-                            ]
-                        }
+                                    },
+                                    0,
+                                ]
+                            }
                         }
                     }
                 ]
@@ -665,38 +792,59 @@ class RedditBot:
                 for doc in lender_doc:
                     for transaction in doc["Transactions"]:
                         try:
-                            if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                            if doc["Transactions"][transaction]["Lender"] == str(
+                                post.author
+                            ):
                                 row = []
                                 row.append(doc["Borrower"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Lender"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Given?"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Repaid"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(doc["Transactions"][transaction]["Lender"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Given"]
+                                )
+                                row.append(doc["Transactions"][transaction]["Given?"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Repaid"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     row.append(True)
                                 else:
                                     row.append(False)
                                 row.append(doc["Orignal Thread"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Paid Back"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Given"]
+                                )
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Paid Back"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     count_lender_completed += 1
-                                    amount_lender_completed += float(doc["Transactions"]
-                                                                     [transaction]["Amount Repaid"])
-                                elif doc["Transactions"][transaction]["UNPAID?"] == True:
+                                    amount_lender_completed += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
+                                elif (
+                                    doc["Transactions"][transaction]["UNPAID?"] == True
+                                ):
                                     count_lender_unpaid += 1
-                                    amount_lender_unpaid += float(doc["Transactions"]
-                                                                  [transaction]["Amount Repaid"])
+                                    amount_lender_unpaid += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
                                 else:
                                     count_lender_ongoing += 1
-                                    amount_lender_ongoing += float(doc["Transactions"]
-                                                                   [transaction]["Amount Repaid"])
+                                    amount_lender_ongoing += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
                                 l.append(row)
                         except Exception as e:
                             print(e)
@@ -709,7 +857,9 @@ class RedditBot:
                     else:
                         o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower for a total of ${count_borrower_completed_amount}\n\n"
                     if count_lender_completed == 0:
-                        o += f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                        o += (
+                            f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                        )
                     else:
                         o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender for a total of ${amount_lender_completed}\n\n"
                     if count_borrower_unpaid == 0:
@@ -721,7 +871,9 @@ class RedditBot:
                     else:
                         o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender for a total of ${amount_lender_unpaid}\n\n"
                     if count_borrowed_ongoing == 0:
-                        o += f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                        o += (
+                            f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                        )
                     else:
                         o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower for a total of ${amount_borrower_ongoing}\n\n"
                     if count_lender_ongoing == 0:
@@ -743,20 +895,22 @@ class RedditBot:
             regex = r"\[REQ\]\s\(([\d.]+)\)\s\(([^)]+)\)\s-\s\(([^)]+)\),\s\(([^)]+)\),\s\(([^)]+)\)"
             match = re.match(regex, str(post.title))
             if match:
-                doc = {
-                    "Borrower": str(post.author),
-                    "Amount Requested": float(match.group(1)),
-                    "Currency": match.group(2),
-                    "Amount Given": 0,
-                    "Amount Repaid": 0,
-                    "Orignal Thread": post.url,
-                    "Transactions": {},
-                }
                 amt = float(match.group(1))
-                self.collection.insert_one(doc)
-                o = f'Here is information on {str(post.author)}\n\n'
-                l = [["Borrower", "Lender", "Amount Given", "Given", "Currency",
-                      "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                o = f"Here is information on {str(post.author)}\n\n"
+                l = [
+                    [
+                        "Borrower",
+                        "Lender",
+                        "Amount Given",
+                        "Given",
+                        "Currency",
+                        "Amount Repaid",
+                        "Repaid",
+                        "Orignal Thread",
+                        "Date Given",
+                        "Date Repaid",
+                    ]
+                ]
                 count_borrower_completed = 0
                 count_borrower_completed_amount = 0.0
                 count_borrower_unpaid = 0
@@ -769,7 +923,7 @@ class RedditBot:
                 amount_lender_unpaid = 0.0
                 count_lender_ongoing = 0
                 amount_lender_ongoing = 0.0
-                myquery = {'Borrower': str(post.author)}
+                myquery = {"Borrower": str(post.author)}
                 requester_doc = self.collection.find(myquery)
                 for i in requester_doc:
                     for transaction in i["Transactions"]:
@@ -777,72 +931,79 @@ class RedditBot:
                             row = []
                             print(i["Transactions"][transaction])
                             row.append(str(post.author))
-                            row.append(i["Transactions"]
-                                       [transaction]["Lender"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Amount Given"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]["Lender"])
+                            row.append(i["Transactions"][transaction]["Amount Given"])
+                            row.append(i["Transactions"][transaction]["Given?"])
                             row.append(i["Currency"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Amount Repaid"])
+                            row.append(i["Transactions"][transaction]["Amount Repaid"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 row.append(True)
                             else:
                                 row.append(False)
                             row.append(i["Orignal Thread"])
-                            row.append(i["Transactions"]
-                                       [transaction]["Date Given"])
-                            row.append(i["Transactions"][transaction]
-                                       ["Date Paid Back"])
+                            row.append(i["Transactions"][transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]["Date Paid Back"])
                             if i["Transactions"][transaction]["Completed?"] == True:
                                 count_borrower_completed += 1
                                 count_borrower_completed_amount += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             elif i["Transactions"][transaction]["UNPAID?"] == True:
                                 count_borrower_unpaid += 1
                                 amount_borrower_unpaid += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             else:
                                 count_borrowed_ongoing += 1
                                 amount_borrower_ongoing += float(
-                                    i["Transactions"][transaction]["Amount Given"])
+                                    i["Transactions"][transaction]["Amount Given"]
+                                )
                             l.append(row)
                         except Exception as e:
                             print(e)
                 pipeline = [
                     {
-                        "$match":   {"$expr": {
-                            "$gt": [
-                                {
-                                    "$size": {
-                                        "$filter": {
-                                            "input": {"$objectToArray": "$Transactions"},
-                                            "as": "item",
-                                            "cond": {
-                                                "$eq": [
-                                                    f"{str(post.author)}",
-                                                    {
-                                                        "$reduce": {
-                                                            "input": {"$objectToArray": "$$item.v"},
-                                                            "initialValue": "",
-                                                            "in": {
-                                                                "$cond": {
-                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
-                                                                    "then": "$$this.v",
-                                                                    "else": "$$value"
-                                                                }
+                        "$match": {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$size": {
+                                            "$filter": {
+                                                "input": {
+                                                    "$objectToArray": "$Transactions"
+                                                },
+                                                "as": "item",
+                                                "cond": {
+                                                    "$eq": [
+                                                        f"{str(post.author)}",
+                                                        {
+                                                            "$reduce": {
+                                                                "input": {
+                                                                    "$objectToArray": "$$item.v"
+                                                                },
+                                                                "initialValue": "",
+                                                                "in": {
+                                                                    "$cond": {
+                                                                        "if": {
+                                                                            "$eq": [
+                                                                                "Lender",
+                                                                                "$$this.k",
+                                                                            ]
+                                                                        },
+                                                                        "then": "$$this.v",
+                                                                        "else": "$$value",
+                                                                    }
+                                                                },
                                                             }
-                                                        }
-                                                    }
-                                                ]
+                                                        },
+                                                    ]
+                                                },
                                             }
                                         }
-                                    }
-                                },
-                                0
-                            ]
-                        }
+                                    },
+                                    0,
+                                ]
+                            }
                         }
                     }
                 ]
@@ -850,39 +1011,60 @@ class RedditBot:
                 for doc in lender_doc:
                     for transaction in doc["Transactions"]:
                         try:
-                            if doc["Transactions"][transaction]["Lender"] == str(post.author):
+                            if doc["Transactions"][transaction]["Lender"] == str(
+                                post.author
+                            ):
                                 row = []
                                 row.append(doc["Borrower"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Lender"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Given?"])
+                                row.append(doc["Transactions"][transaction]["Lender"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Given"]
+                                )
+                                row.append(doc["Transactions"][transaction]["Given?"])
                                 row.append(doc["Currency"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Repaid"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Repaid"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     row.append(True)
                                 else:
                                     row.append(False)
                                 row.append(doc["Orignal Thread"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Paid Back"])
-                                if doc["Transactions"][transaction]["Completed?"] == True:
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Given"]
+                                )
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Paid Back"]
+                                )
+                                if (
+                                    doc["Transactions"][transaction]["Completed?"]
+                                    == True
+                                ):
                                     count_lender_completed += 1
-                                    amount_lender_completed += float(doc["Transactions"]
-                                                                     [transaction]["Amount Repaid"])
-                                elif doc["Transactions"][transaction]["UNPAID?"] == True:
+                                    amount_lender_completed += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
+                                elif (
+                                    doc["Transactions"][transaction]["UNPAID?"] == True
+                                ):
                                     count_lender_unpaid += 1
-                                    amount_lender_unpaid += float(doc["Transactions"]
-                                                                  [transaction]["Amount Repaid"])
+                                    amount_lender_unpaid += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
                                 else:
                                     count_lender_ongoing += 1
-                                    amount_lender_ongoing += float(doc["Transactions"]
-                                                                   [transaction]["Amount Repaid"])
+                                    amount_lender_ongoing += float(
+                                        doc["Transactions"][transaction][
+                                            "Amount Repaid"
+                                        ]
+                                    )
                                 l.append(row)
                         except Exception as e:
                             print(e)
@@ -896,7 +1078,9 @@ class RedditBot:
                     else:
                         o += f"u/{str(post.author)} has {count_borrower_completed} Loans Completed as Borrower for a total of ${count_borrower_completed_amount}\n\n"
                     if count_lender_completed == 0:
-                        o += f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                        o += (
+                            f"u/{str(post.author)} has no loans completed as Lender\n\n"
+                        )
                     else:
                         o += f"u/{str(post.author)} has {count_lender_completed} Loans Completed as Lender for a total of ${amount_lender_completed}\n\n"
                     if count_borrower_unpaid == 0:
@@ -908,7 +1092,9 @@ class RedditBot:
                     else:
                         o += f"u/{str(post.author)} has {count_lender_unpaid} Loans Unpaid as Lender for a total of ${amount_lender_unpaid}\n\n"
                     if count_borrowed_ongoing == 0:
-                        o += f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                        o += (
+                            f"u/{str(post.author)} has no loans ongoing as Borrower\n\n"
+                        )
                     else:
                         o += f"u/{str(post.author)} has {count_borrowed_ongoing} Loans Ongoing as Borrower for a total of ${amount_borrower_ongoing}\n\n"
                     if count_lender_ongoing == 0:
@@ -933,17 +1119,33 @@ class RedditBot:
             if match:
                 post = comment.submission
                 if not (str(post.title).strip().startswith("[REQ]")):
-                    comment.reply(
-                        "Please only use this command in a Request Post.")
+                    comment.reply("Please only use this command in a Request Post.")
                     return
                 post_url = post.url
-                myquery = {'Orignal Thread': post_url}
+                myquery = {"Orignal Thread": post_url}
                 doc = self.collection.find_one(myquery)
+                if not doc:
+                    regex2 = r"\[REQ\]\s\(([\d.]+)\)\s\(([^)]+)\)\s-\s\(([^)]+)\),\s\(([^)]+)\),\s\(([^)]+)\)"
+                    match2 = re.match(regex2, str(post.title))
+                    doc = {
+                        "Borrower": str(post.author),
+                        "Amount Requested": float(match2.group(1)),
+                        "Currency": match2.group(2),
+                        "Amount Given": 0,
+                        "Amount Repaid": 0,
+                        "Orignal Thread": post.url,
+                        "Transactions": {},
+                    }
+                    self.collection.insert_one(doc)
                 arr = doc["Transactions"]
                 loan_amount_given = float(match.group(1))
                 amount_give_till_now = float(doc["Amount Given"])
                 loan_amount_max_asked = float(
-                    re.match(r"\[REQ\]\s\(([\d.]+)\)\s\(([^)]+)\)\s-\s\(([^)]+)\),\s\(([^)]+)\),\s\(([^)]+)\)", comment.submission.title).group(1))
+                    re.match(
+                        r"\[REQ\]\s\(([\d.]+)\)\s\(([^)]+)\)\s-\s\(([^)]+)\),\s\(([^)]+)\),\s\(([^)]+)\)",
+                        comment.submission.title,
+                    ).group(1)
+                )
                 lender_name = comment.author.name
                 borrower_name = comment.submission.author
                 paid_with_id = str(random.randint(10000, 99999))
@@ -954,7 +1156,10 @@ class RedditBot:
                 if borrower_name == lender_name:
                     message = f"[{borrower_name}](/u/{borrower_name})-Borrower dont have access to write this command."
                     comment.reply(message)
-                elif loan_amount_max_asked-amount_give_till_now >= loan_amount_given and loan_amount_given > 0:
+                elif (
+                    loan_amount_max_asked - amount_give_till_now >= loan_amount_given
+                    and loan_amount_given > 0
+                ):
                     new_doc = {
                         "Lender": str(comment.author),
                         "Amount Given": loan_amount_given,
@@ -964,38 +1169,42 @@ class RedditBot:
                         "UNPAID?": "",
                         "Date Given": datetime.datetime.now(),
                         "Date Paid Back": None,
-                        "Completed?": False
+                        "Completed?": False,
                     }
                     arr[paid_with_id] = new_doc
                     newvalues = {"$set": {"Transactions": arr}}
                     self.collection.update_one(myquery, newvalues)
 
                     highlighted_text_1 = "$confirm {} {}".format(
-                        paid_with_id, loan_amount_given)
+                        paid_with_id, loan_amount_given
+                    )
                     highlighted_text_2 = "$repaid_with_id {} {}".format(
-                        paid_with_id, loan_amount_given)
+                        paid_with_id, loan_amount_given
+                    )
 
                     new_doc = {
                         "Borrower": str(comment.submission.author),
                         "Lender": str(comment.author),
-                        'Orignal Thread': post_url,
-                        "ID": paid_with_id
+                        "Orignal Thread": post_url,
+                        "ID": paid_with_id,
                     }
                     self.post_collection.insert_one(new_doc)
-                    message = f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} to [{borrower_name}](/u/{borrower_name})\n\n" \
-                        f"```The unique id for this transaction is - {paid_with_id}```\n\n"\
-                        f"The format of the confirm command will be:\n\n"\
-                        f"```{highlighted_text_1}```" \
-                        f"\n\nIf you wish to mark this loan repaid later, you can use:\n\n"\
-                        f"```{highlighted_text_2}```" \
-                        f"\n\n  "\
-                        f"\n\nThis does NOT verify that [{lender_name}](/u/{lender_name}) actually lent anything to [{borrower_name}](/u/{borrower_name});\n\n " \
-                        f"[{borrower_name}](/u/{borrower_name}) should confirm here or nearby that the money was sent" \
-                        f"\n\n**If the loan transaction did not work out and needs to be refunded then the lender should" \
+                    message = (
+                        f"Noted! I will remember that [{lender_name}](/u/{lender_name}) lent {loan_amount_given} to [{borrower_name}](/u/{borrower_name})\n\n"
+                        f"```The unique id for this transaction is - {paid_with_id}```\n\n"
+                        f"The format of the confirm command will be:\n\n"
+                        f"```{highlighted_text_1}```"
+                        f"\n\nIf you wish to mark this loan repaid later, you can use:\n\n"
+                        f"```{highlighted_text_2}```"
+                        f"\n\n  "
+                        f"\n\nThis does NOT verify that [{lender_name}](/u/{lender_name}) actually lent anything to [{borrower_name}](/u/{borrower_name});\n\n "
+                        f"[{borrower_name}](/u/{borrower_name}) should confirm here or nearby that the money was sent"
+                        f"\n\n**If the loan transaction did not work out and needs to be refunded then the lender should"
                         f" reply to this comment with 'Refunded' and moderators will be automatically notified**"
+                    )
                     comment.reply(message)
                 else:
-                    if loan_amount_max_asked-amount_give_till_now == 0:
+                    if loan_amount_max_asked - amount_give_till_now == 0:
                         message = f"[{comment.author}](/u/{comment.author}) \n This loan request has been fulfilled."
                     else:
                         message = f"[{comment.author}](/u/{comment.author}) \n Maximum Amount you can Lend is {loan_amount_max_asked-amount_give_till_now} $"
@@ -1019,7 +1228,7 @@ class RedditBot:
                     return
                 post_url = doc1["Orignal Thread"]
                 post = self.reddit.submission(url=post_url)
-                myquery = {'Orignal Thread': post_url}
+                myquery = {"Orignal Thread": post_url}
                 doc = self.collection.find_one(myquery)
                 existing_amt_given = doc["Amount Given"]
                 amount_requested = doc["Amount Requested"]
@@ -1029,7 +1238,8 @@ class RedditBot:
                 comment_author = comment.author
                 lender_name = transactions[paid_with_id]["Lender"]
                 lender_actual_amount_given = float(
-                    transactions[paid_with_id]['Amount Given'])
+                    transactions[paid_with_id]["Amount Given"]
+                )
 
                 if paid_with_id in transactions:
                     if borrower_name != comment_author:
@@ -1044,17 +1254,25 @@ class RedditBot:
                     transactions[paid_with_id]["Given?"] = True
                     existing_amt_given += float(comment_amount_received)
 
-                    message = f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{lender_name}](/u/{lender_name}) gave him/her {comment_amount_received}. (Reference amount: {amount_requested}). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n" \
-                        f"___________________________________________________"\
+                    message = (
+                        f"[{borrower_name}](/u/{borrower_name}) has just confirmed that [{lender_name}](/u/{lender_name}) gave him/her {comment_amount_received}. (Reference amount: {amount_requested}). We matched this confirmation with this [loan]({post_url}) (id={paid_with_id}).\n\n"
+                        f"___________________________________________________"
                         f"\n\nThe purpose of responding to $confirm is to ensure the comment doesn't get edited.\n"
+                    )
                     comment.reply(message)
-                    myquery = {'Orignal Thread': post_url}
-                    newvalues = {"$set": {"Transactions": transactions,
-                                          "Amount Given": existing_amt_given}}
+                    myquery = {"Orignal Thread": post_url}
+                    newvalues = {
+                        "$set": {
+                            "Transactions": transactions,
+                            "Amount Given": existing_amt_given,
+                        }
+                    }
                     self.collection.update_one(myquery, newvalues)
                 else:
-                    message = f"Cannot Confirm!\n\n"\
+                    message = (
+                        f"Cannot Confirm!\n\n"
                         f"**[{lender_name}](/u/{lender_name}** has given them amount of **{comment_amount_received}** $ to **[{borrower_name}](/u/{borrower_name})**"
+                    )
                     comment.reply(message)
             else:
                 message = f"Invalid Command Format. The correct format is ```$confirm <5 digit id> <amount> <optional_currency>```"
@@ -1075,7 +1293,7 @@ class RedditBot:
                     return
                 post_url = doc1["Orignal Thread"]
                 post = self.reddit.submission(url=post_url)
-                myquery = {'Orignal Thread': post_url}
+                myquery = {"Orignal Thread": post_url}
                 doc = self.collection.find_one(myquery)
                 transactions = doc["Transactions"]
                 comment_amount_repaid = float(match.group(2))
@@ -1115,8 +1333,7 @@ class RedditBot:
                         return
 
                     # update amount repaid to coment amount repaid add date paid back as current time
-                    transactions[id]["Amount Repaid"] += float(
-                        comment_amount_repaid)
+                    transactions[id]["Amount Repaid"] += float(comment_amount_repaid)
                     transactions[id]["Date Paid Back"] = datetime.datetime.now()
                     newvalues = {
                         "$set": {
@@ -1124,10 +1341,12 @@ class RedditBot:
                         }
                     }
                     self.collection.update_one(myquery, newvalues)
-                    message = f"Hi {str(comment.author)}, your loan of {comment_amount_repaid} from [{lender_name}](/u/{lender_name}) has noted successfully. To confirm [{lender_name}](/u/{lender_name}) must reply with the following:" \
+                    message = (
+                        f"Hi {str(comment.author)}, your loan of {comment_amount_repaid} from [{lender_name}](/u/{lender_name}) has noted successfully. To confirm [{lender_name}](/u/{lender_name}) must reply with the following:"
                         f"""
-                    \n\n```$repaid_confirm {id} {comment_amount_repaid}```""" \
-                    f"\n\n**Transaction ID:** {id} **Date Repaid:** {datetime.datetime.now()}"
+                    \n\n```$repaid_confirm {id} {comment_amount_repaid}```"""
+                        f"\n\n**Transaction ID:** {id} **Date Repaid:** {datetime.datetime.now()}"
+                    )
                     self.collection.update_one(myquery, newvalues)
                 else:
                     message = f"Transaction ID not found. Please check command again."
@@ -1150,7 +1369,7 @@ class RedditBot:
                     comment.reply(message)
                     return
                 post_url = doc1["Orignal Thread"]
-                myquery = {'Orignal Thread': post_url}
+                myquery = {"Orignal Thread": post_url}
                 doc = self.collection.find_one(myquery)
                 current_repaid_amount = float(doc["Amount Repaid"])
                 transactions = doc["Transactions"]
@@ -1197,7 +1416,7 @@ class RedditBot:
                     newvalues = {
                         "$set": {
                             "Transactions": transactions,
-                            "Amount Repaid": current_repaid_amount
+                            "Amount Repaid": current_repaid_amount,
                         }
                     }
 
@@ -1232,72 +1451,88 @@ class RedditBot:
 
             if user_id != False:
                 print(comment.body)
-                o = f'Here is information on {user_id}\n\n'
-                l = [["Borrower", "Lender", "Amount Given", "Given", "Currency",
-                      "Amount Repaid", "Repaid", "Orignal Thread", "Date Given", "Date Repaid"]]
+                o = f"Here is information on {user_id}\n\n"
+                l = [
+                    [
+                        "Borrower",
+                        "Lender",
+                        "Amount Given",
+                        "Given",
+                        "Currency",
+                        "Amount Repaid",
+                        "Repaid",
+                        "Orignal Thread",
+                        "Date Given",
+                        "Date Repaid",
+                    ]
+                ]
                 # l = [["Borrower", "Lender", "Amount Given", "Amount Repaid",
                 #       "Orignal Thread", "Date Given", "Date Paid Back "]]
-                myquery = {'Borrower': str(user_id)}
+                myquery = {"Borrower": str(user_id)}
                 requester_doc = self.collection.find(myquery)
                 for i in requester_doc:
                     for transaction in i["Transactions"]:
                         try:
                             row = []
                             row.append(str(user_id))
-                            row.append(i["Transactions"]
-                                       [transaction]["Lender"])
-                            row.append(i["Transactions"]
-                                        [transaction]["Amount Given"])
-                            row.append(i["Transactions"]
-                                        [transaction]["Given?"])
+                            row.append(i["Transactions"][transaction]["Lender"])
+                            row.append(i["Transactions"][transaction]["Amount Given"])
+                            row.append(i["Transactions"][transaction]["Given?"])
                             row.append(i["Currency"])
-                            row.append(i["Transactions"][transaction]
-                                        ["Amount Repaid"])
+                            row.append(i["Transactions"][transaction]["Amount Repaid"])
                             if i["Transactions"][transaction]["Completed?"]:
                                 row.append(True)
                             else:
                                 row.append(False)
                             row.append(i["Orignal Thread"])
-                            row.append(i["Transactions"]
-                                        [transaction]["Date Given"])
-                            row.append(i["Transactions"][transaction]
-                                        ["Date Paid Back"])
+                            row.append(i["Transactions"][transaction]["Date Given"])
+                            row.append(i["Transactions"][transaction]["Date Paid Back"])
                             l.append(row)
                         except Exception as e:
                             print(e)
                 pipeline = [
                     {
-                        "$match":   {"$expr": {
-                            "$gt": [
-                                {
-                                    "$size": {
-                                        "$filter": {
-                                            "input": {"$objectToArray": "$Transactions"},
-                                            "as": "item",
-                                            "cond": {
-                                                "$eq": [
-                                                    f"{str(user_id)}",
-                                                    {
-                                                        "$reduce": {
-                                                            "input": {"$objectToArray": "$$item.v"},
-                                                            "initialValue": "",
-                                                            "in": {
-                                                                "$cond": {
-                                                                    "if": {"$eq": ["Lender", "$$this.k"]},
-                                                                    "then": "$$this.v",
-                                                                    "else": "$$value"
-                                                                }
+                        "$match": {
+                            "$expr": {
+                                "$gt": [
+                                    {
+                                        "$size": {
+                                            "$filter": {
+                                                "input": {
+                                                    "$objectToArray": "$Transactions"
+                                                },
+                                                "as": "item",
+                                                "cond": {
+                                                    "$eq": [
+                                                        f"{str(user_id)}",
+                                                        {
+                                                            "$reduce": {
+                                                                "input": {
+                                                                    "$objectToArray": "$$item.v"
+                                                                },
+                                                                "initialValue": "",
+                                                                "in": {
+                                                                    "$cond": {
+                                                                        "if": {
+                                                                            "$eq": [
+                                                                                "Lender",
+                                                                                "$$this.k",
+                                                                            ]
+                                                                        },
+                                                                        "then": "$$this.v",
+                                                                        "else": "$$value",
+                                                                    }
+                                                                },
                                                             }
-                                                        }
-                                                    }
-                                                ]
+                                                        },
+                                                    ]
+                                                },
                                             }
                                         }
-                                    }
-                                },
-                                0
-                            ]
-                        }
+                                    },
+                                    0,
+                                ]
+                            }
                         }
                     }
                 ]
@@ -1305,27 +1540,31 @@ class RedditBot:
                 for doc in lender_doc:
                     for transaction in doc["Transactions"]:
                         try:
-                            if doc["Transactions"][transaction]["Lender"] == str(user_id):
+                            if doc["Transactions"][transaction]["Lender"] == str(
+                                user_id
+                            ):
                                 row = []
                                 row.append(doc["Borrower"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Lender"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Given?"])
+                                row.append(doc["Transactions"][transaction]["Lender"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Given"]
+                                )
+                                row.append(doc["Transactions"][transaction]["Given?"])
                                 row.append(doc["Currency"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Amount Repaid"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Amount Repaid"]
+                                )
                                 if doc["Transactions"][transaction]["Completed?"]:
                                     row.append(True)
                                 else:
                                     row.append(False)
                                 row.append(doc["Orignal Thread"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Given"])
-                                row.append(doc["Transactions"]
-                                           [transaction]["Date Paid Back"])
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Given"]
+                                )
+                                row.append(
+                                    doc["Transactions"][transaction]["Date Paid Back"]
+                                )
                                 l.append(row)
                         except Exception as e:
                             print(e)
@@ -1338,28 +1577,28 @@ class RedditBot:
             print(e)
 
     def help_command(self, comment):
-        message = 'Here are the available commands: '
-        message += ' \n\n'
-        message += ' ```$check <user_id>``` - Check the status of a user. '
-        message += ' \n\n'
-        message += ' ```$help``` - Get help with the commands. '
-        message += ' \n\n'
-        message += ' ```$loan <amount>``` - Offer a loan to the author of the post. '
-        message += ' \n\n'
-        message += ' ```$confirm <transaction_id> <amoount>``` - Confirm a loan with the given transaction id. '
-        message += ' \n\n'
-        message += ' ```$repaid_with_id <transaction_id> <amount>``` - Inform that the loan has been repaid with the given transaction id. '
-        message += ' \n\n'
-        message += ' ```$repaid_confirm <transaction_id> <amount>``` - Confirm that the loan has been repaid with the given transaction id. '
-        message += ' \n\n'
-        message += ' ```$unpaid <transaction_id>``` - Marks the transaction as unpaid. '
-        message += ' \n\n'
+        message = "Here are the available commands: "
+        message += " \n\n"
+        message += " ```$check <user_id>``` - Check the status of a user. "
+        message += " \n\n"
+        message += " ```$help``` - Get help with the commands. "
+        message += " \n\n"
+        message += " ```$loan <amount>``` - Offer a loan to the author of the post. "
+        message += " \n\n"
+        message += " ```$confirm <transaction_id> <amoount>``` - Confirm a loan with the given transaction id. "
+        message += " \n\n"
+        message += " ```$repaid_with_id <transaction_id> <amount>``` - Inform that the loan has been repaid with the given transaction id. "
+        message += " \n\n"
+        message += " ```$repaid_confirm <transaction_id> <amount>``` - Confirm that the loan has been repaid with the given transaction id. "
+        message += " \n\n"
+        message += " ```$unpaid <transaction_id>``` - Marks the transaction as unpaid. "
+        message += " \n\n"
         comment.reply(message)
 
     def handle_new_comment(self, comment):
         try:
-            print(f'New Comment:', comment.body)
-            if comment.body.strip().startswith('$'):
+            print(f"New Comment:", comment.body)
+            if comment.body.strip().startswith("$"):
                 command = comment.body.split()[0].lower()[1:]
                 if command in self.commands:
                     self.commands[command](comment)
@@ -1396,6 +1635,6 @@ if __name__ == "__main__":
         user_agent=credentials.user_agent,
         username=credentials.username,
         password=credentials.password,
-        target_subreddit=credentials.subreddit_name
+        target_subreddit=credentials.subreddit_name,
     )
     bot.start()

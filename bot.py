@@ -49,7 +49,6 @@ class RedditBot:
         )["Posts"][credentials.mongo_collection]
         self.post_stream = self.subreddit.stream.submissions()
         self.comment_stream = self.subreddit.stream.comments()
-
         self.REQ_POST_REGEX = r"\[REQ\]\s\(([\d.]+)\)\s\(([^)]+)\)\s-\s\(([^)]+)\),\s\(([^)]+)\),\s\(([^)]+)\)"
         self.OFFER_POST_REGEX = r"^\[OFFER\] - \((.*?)\)$"
         self.UNPAID_POST_REGEX = (
@@ -60,6 +59,7 @@ class RedditBot:
         self.CONFIRM_REGEX = r"^\$confirm\s(\d{5})\s([-+]?\d*\.?\d+)\s(\w+)$"
         self.REPAID_REGEX = r"^\$repaid\\_with\\_id\s(\d{5})\s([-+]?\d*\.?\d+)\s(\w+)$"
         self.REPAID_CONFIRM_REGEX = r"^\$repaid\\_confirm\s(\d{5})\s([-+]?\d*\.?\d+)\s(\w+)$"
+        self.UNPAID_REGEX = r"\$unpaid\s+(\d{5})"
         self.commands = {
             "help": self.help_command,
             "loan": self.loan,
@@ -70,7 +70,7 @@ class RedditBot:
             "unpaid": self.unpaid,
         }
 
-    def get_user_details(self, username):
+    def get_user_details(self, username, unpaid=False):
         l = [
             [
                 "Borrower",
@@ -108,7 +108,8 @@ class RedditBot:
                     row.append(str(username))
                     row.append(i["Transactions"][transaction]["Lender"])
                     row.append(i["Transactions"][transaction]["Amount Given"])
-                    row.append(i["Transactions"][transaction]["Currency Given"])
+                    row.append(i["Transactions"][transaction]
+                               ["Currency Given"])
                     row.append(i["Transactions"][transaction]["Given?"])
                     row.append(i["Transactions"][transaction]["Amount Repaid"])
                     row.append(i["Transactions"][transaction]
@@ -274,7 +275,7 @@ class RedditBot:
 
     def unpaid(self, comment):
         try:
-            regex = r"\$unpaid\s+(\d{5})"
+            regex = self.UNPAID_REGEX
             match = re.match(regex, comment.body)
             if match:
                 paid_with_id = match.group(1)
@@ -439,9 +440,9 @@ class RedditBot:
                 post_url = post.url
                 myquery = {"Orignal Thread": post_url}
                 doc = self.collection.find_one(myquery)
+                match2 = re.match(regex2, str(post.title))
                 if not doc:
                     regex2 = self.REQ_POST_REGEX
-                    match2 = re.match(regex2, str(post.title))
                     post_amount = float(match2.group(1))
                     post_currency = match2.group(2).upper()
                     post_amount = round(
@@ -839,17 +840,17 @@ class RedditBot:
     def help_command(self, comment):
         message = "Here are the available commands: "
         message += " \n\n"
-        message += " ```$check <user_id>``` - Check the status of a user. "
+        message += " ```$check u/<user_id>``` - Check the status of a user. "
         message += " \n\n"
         message += " ```$help``` - Get help with the commands. "
         message += " \n\n"
-        message += " ```$loan <amount>``` - Offer a loan to the author of the post. "
+        message += " ```$loan <amount> <currency>``` - Offer a loan to the author of the post. "
         message += " \n\n"
-        message += " ```$confirm <transaction_id> <amoount>``` - Confirm a loan with the given transaction id. "
+        message += " ```$confirm <transaction_id> <amoount> <currency>``` - Confirm a loan with the given transaction id. "
         message += " \n\n"
-        message += " ```$repaid_with_id <transaction_id> <amount>``` - Inform that the loan has been repaid with the given transaction id. "
+        message += " ```$repaid_with_id <transaction_id> <amount> <currency>``` - Inform that the loan has been repaid with the given transaction id. "
         message += " \n\n"
-        message += " ```$repaid_confirm <transaction_id> <amount>``` - Confirm that the loan has been repaid with the given transaction id. "
+        message += " ```$repaid_confirm <transaction_id> <amount> <currency>``` - Confirm that the loan has been repaid with the given transaction id. "
         message += " \n\n"
         message += " ```$unpaid <transaction_id>``` - Marks the transaction as unpaid. "
         message += " \n\n"

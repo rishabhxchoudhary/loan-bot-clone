@@ -70,7 +70,7 @@ class RedditBot:
             "unpaid": self.unpaid,
         }
 
-    def get_user_details(self, username, unpaid=False):
+    def get_user_details(self, username):
         l = [
             [
                 "Borrower",
@@ -273,52 +273,6 @@ class RedditBot:
                 o += f"u/{str(username)} has {count_lender_ongoing} Loans Ongoing as Lender for a total of ${amount_lender_ongoing}\n\n"
         return o
 
-    def unpaid(self, comment):
-        try:
-            regex = self.UNPAID_REGEX
-            match = re.match(regex, comment.body)
-            if match:
-                paid_with_id = match.group(1)
-                doc1 = self.post_collection.find_one({"ID": paid_with_id})
-                if not doc1:
-                    message = f"Invalid ID. Please check the ID and try again."
-                    comment.reply(message)
-                    return
-                post_url = doc1["Orignal Thread"]
-                post = self.reddit.submission(url=post_url)
-                myquery = {"Orignal Thread": post_url}
-                doc = self.collection.find_one(myquery)
-                arr = doc["Transactions"]
-                transaction = arr[paid_with_id]
-                if comment.author != transaction["Lender"]:
-                    comment.reply(
-                        "You cannot mark someone else's transaction as unpaid"
-                    )
-                    return
-                if transaction["Completed?"] == True:
-                    comment.reply(
-                        "This transaction has already been completed")
-                    return
-                if transaction["Lender"] == str(post.author):
-                    comment.reply(
-                        "You cannot mark your own transaction as unpaid")
-                    return
-                if transaction["UNPAID?"] == "**UNPAID**":
-                    comment.reply(
-                        "This transaction has already been marked as unpaid")
-                    return
-                arr[paid_with_id]["UNPAID?"] = "**UNPAID**"
-                newvalues = {"$set": {"Transactions": arr}}
-                self.collection.update_one(myquery, newvalues)
-                o = f"Sorry to hear that about u/{str(post.author)}\n\n"
-                o += self.get_user_details(str(post.author))
-                comment.reply(o)
-            else:
-                message = f"Invalid Command Format. The correct format is ```$unpaid <5_digit transaction_id>```"
-                comment.reply(message)
-        except Exception as e:
-            print(e)
-
     def handle_new_post(self, post):
         print(f"New post: {post.title}")
         if str(post.title).startswith("[REQ]"):
@@ -431,7 +385,9 @@ class RedditBot:
         try:
             regex = self.LOAN_REGEX
             match = re.match(regex, str(comment.body).strip())
+            loan_currency_given = match.group(3).upper()
             if match:
+                loan_amount_given = float(match.group(1))
                 post = comment.submission
                 if not (str(post.title).strip().startswith("[REQ]")):
                     comment.reply(
@@ -458,8 +414,6 @@ class RedditBot:
                     }
                     self.collection.insert_one(doc)
                 arr = doc["Transactions"]
-                loan_amount_given = float(match.group(1))
-                loan_currency_given = match.group(3).upper()
                 if loan_currency_given not in currencies_supported:
                     message = f"Currency not supported. Please check the currency and try again."
                     message += "\n\nSupported Currencies: ```"
@@ -558,6 +512,8 @@ class RedditBot:
             match = re.match(regex, comment.body)
             if match:
                 paid_with_id = match.group(1)
+                comment_amount_received = float(match.group(2))
+                comment_currency_received = match.group(3).upper()
                 doc1 = self.post_collection.find_one({"ID": paid_with_id})
                 if not doc1:
                     message = f"Invalid ID. Please check the ID and try again."
@@ -570,8 +526,6 @@ class RedditBot:
                 existing_amt_given = doc["Amount Given"]
                 amount_requested = doc["Amount Requested"]
                 transactions = doc["Transactions"]
-                comment_amount_received = float(match.group(2))
-                comment_currency_received = match.group(3).upper()
                 borrower_name = post.author
                 comment_author = comment.author
                 lender_name = transactions[paid_with_id]["Lender"]
@@ -630,6 +584,8 @@ class RedditBot:
             match = re.match(regex, comment.body)
             if match:
                 id = match.group(1)
+                comment_amount_repaid = float(match.group(2))
+                comment_currency_repaid = match.group(3).upper()
                 doc1 = self.post_collection.find_one({"ID": id})
                 if not doc1:
                     message = f"Invalid ID. Please check the ID and try again."
@@ -640,8 +596,6 @@ class RedditBot:
                 myquery = {"Orignal Thread": post_url}
                 doc = self.collection.find_one(myquery)
                 transactions = doc["Transactions"]
-                comment_amount_repaid = float(match.group(2))
-                comment_currency_repaid = match.group(3).upper()
                 if comment_currency_repaid not in currencies_supported:
                     message = f"Currency not supported. Please check the currency and try again."
                     message += "\n\nSupported Currencies: ```"
@@ -734,6 +688,8 @@ class RedditBot:
             match = re.match(regex, comment.body)
             if match:
                 id = match.group(1)
+                comment_amount_repaid = float(match.group(2))
+                comment_currency_repaid = match.group(3).upper()
                 doc1 = self.post_collection.find_one({"ID": id})
                 if not doc1:
                     message = f"Invalid ID. Please check the ID and try again."
@@ -745,8 +701,6 @@ class RedditBot:
                 current_repaid_amount = float(doc["Amount Repaid"])
                 transactions = doc["Transactions"]
                 comment_author = comment.author
-                comment_amount_repaid = float(match.group(2))
-                comment_currency_repaid = match.group(3).upper()
                 borrower_name = comment.submission.author
                 id = match.group(1)
                 if id in transactions:
@@ -807,6 +761,52 @@ class RedditBot:
                 comment.reply(message)
             else:
                 message = f"Invalid Command Format. The correct format is ```$repaid_confirm <5 digit id> <amount>```"
+                comment.reply(message)
+        except Exception as e:
+            print(e)
+
+    def unpaid(self, comment):
+        try:
+            regex = self.UNPAID_REGEX
+            match = re.match(regex, comment.body)
+            if match:
+                paid_with_id = match.group(1)
+                doc1 = self.post_collection.find_one({"ID": paid_with_id})
+                if not doc1:
+                    message = f"Invalid ID. Please check the ID and try again."
+                    comment.reply(message)
+                    return
+                post_url = doc1["Orignal Thread"]
+                post = self.reddit.submission(url=post_url)
+                myquery = {"Orignal Thread": post_url}
+                doc = self.collection.find_one(myquery)
+                arr = doc["Transactions"]
+                transaction = arr[paid_with_id]
+                if comment.author != transaction["Lender"]:
+                    comment.reply(
+                        "You cannot mark someone else's transaction as unpaid"
+                    )
+                    return
+                if transaction["Completed?"] == True:
+                    comment.reply(
+                        "This transaction has already been completed")
+                    return
+                if transaction["Lender"] == str(post.author):
+                    comment.reply(
+                        "You cannot mark your own transaction as unpaid")
+                    return
+                if transaction["UNPAID?"] == "**UNPAID**":
+                    comment.reply(
+                        "This transaction has already been marked as unpaid")
+                    return
+                arr[paid_with_id]["UNPAID?"] = "**UNPAID**"
+                newvalues = {"$set": {"Transactions": arr}}
+                self.collection.update_one(myquery, newvalues)
+                o = f"Sorry to hear that about u/{str(post.author)}\n\n"
+                o += self.get_user_details(str(post.author))
+                comment.reply(o)
+            else:
+                message = f"Invalid Command Format. The correct format is ```$unpaid <5_digit transaction_id>```"
                 comment.reply(message)
         except Exception as e:
             print(e)
